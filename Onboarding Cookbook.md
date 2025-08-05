@@ -830,7 +830,7 @@ Your onboarding is now a competitive advantage rather than a technical debt. As 
 
 ## Next Steps
 
-Now that you have a working onboarding system, explore [Courier's automation designer](https://www.courier.com/docs/platform/automations/designer) for visual workflow creation that your product team can manage independently. Set up [preferences](https://www.courier.com/docs/platform/preferences/preferences-overview) to let users control their notification experience and reduce unsubscribes. Implement [guardrails](https://www.courier.com/docs/platform/sending/guardrails) to prevent notification fatigue while ensuring important messages get through. Finally, use [A/B testing](https://www.courier.com/docs/platform/sending/ab-testing) to optimize your sequences based on real user behavior rather than assumptions.
+Now that you have a working onboarding system, explore [Courier's automation designer](https://www.courier.com/docs/platform/automations/designer) for visual workflow creation that your product team can manage independently. Set up [preferences](https://www.courier.com/docs/platform/preferences/preferences-overview) to let users control their notification experience and reduce unsubscribes. Implement [guardrails](https://www.courier.com/docs/platform/sending/guardrails) to prevent notification fatigue while ensuring important messages get through.
 
 The onboarding system you've built today is just the beginning. As you gather data and user feedback, you'll discover new opportunities to help users succeed. With Courier's platform handling the technical complexity, you're free to focus on what matters most: creating experiences that turn signups into successful, long-term customers.
 
