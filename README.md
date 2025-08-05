@@ -168,118 +168,6 @@ Advanced features:
 2. `user_preferences_management.js` - User control
 3. `slack_escalation.js` or `microsoft_teams_escalation.js` - Human intervention
 
-## Common Use Cases
-
-### 1. SaaS Product Onboarding
-```javascript
-// Track signup and trigger welcome flow
-await events.userSignedUp({ 
-  email, name, company, plan: 'trial' 
-});
-
-// Create onboarding tasks
-await createOnboardingTasks(userId, 'trial');
-```
-
-### 2. Enterprise B2B Onboarding
-```javascript
-// Use multi-tenant configuration
-const config = tenantConfigs['enterprise'];
-await sendTenantNotification(userId, 'enterprise', notification);
-
-// Escalate to success team if needed
-await slackEscalation.checkAndEscalate(userId);
-```
-
-### 3. Mobile App Onboarding
-```jsx
-// React Native implementation
-<MobileOnboarding userId={userId} clientKey={clientKey} />
-
-// Configure push notifications
-await configurePushNotifications(courier, userId);
-```
-
-## Best Practices
-
-### 1. Event-Driven Architecture
-- Track meaningful user actions, not page views
-- Use events to trigger contextual messages
-- Store behavioral data in user profiles
-
-### 2. Progressive Disclosure
-- Start with essential tasks only
-- Reveal advanced features as users progress
-- Adapt complexity based on user expertise
-
-### 3. Multi-Channel Strategy
-- Email for detailed instructions
-- SMS for critical reminders
-- In-app for contextual help
-- Slack/Teams for enterprise escalation
-
-### 4. Personalization
-- Segment users by plan, role, and company size
-- Adapt messaging tone and frequency
-- Provide different paths for different personas
-
-### 5. Measurement
-- Track task completion rates
-- Monitor time to activation
-- Identify drop-off points
-- Iterate based on analytics data
-
-## Troubleshooting
-
-### Common Issues
-
-**Messages not sending:**
-- Verify API tokens in environment variables
-- Check user profile has required contact information
-- Review channel routing configuration
-
-**Tasks not appearing in Inbox:**
-- Ensure CourierProvider wraps your React app
-- Verify user authentication (JWT or HMAC)
-- Check WebSocket connection to `wss://realtime.courier.com`
-
-**Webhooks not processing:**
-- Verify webhook signature with secret
-- Check webhook URL is publicly accessible
-- Review webhook handler error logs
-
-## Advanced Topics
-
-### Custom Integrations
-Extend the system with your own tools:
-```javascript
-// Add custom provider
-const customProvider = {
-  send: async (message) => {
-    // Your custom sending logic
-  }
-};
-```
-
-### Batch Processing
-Handle bulk onboarding:
-```javascript
-// Use Courier's bulk API
-await courier.bulk.createJob({
-  message: welcomeTemplate,
-  users: newUserBatch
-});
-```
-
-### Internationalization
-Support multiple languages:
-```javascript
-// Use locale in user profile
-await courier.profiles.merge({
-  recipientId: userId,
-  profile: { locale: 'es' }
-});
-```
 
 ## Resources
 
@@ -291,8 +179,7 @@ await courier.profiles.merge({
 
 ### Support
 - [Courier Support](mailto:support@courier.com)
-- [Community Forum](https://community.courier.com)
-- [GitHub Examples](https://github.com/trycourier)
+
 
 ## Contributing
 
@@ -309,4 +196,4 @@ This cookbook is provided as-is for educational purposes. Feel free to use and m
 
 ---
 
-Built with ❤️ by developers, for developers. Happy onboarding! 🚀
+Happy onboarding! 🚀
