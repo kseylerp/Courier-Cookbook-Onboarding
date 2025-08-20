@@ -53,6 +53,7 @@ npm install @trycourier/courier                  # Backend SDK
 npm install @trycourier/react-inbox              # React components
 npm install @trycourier/courier-react-native     # Mobile SDK
 ```
+***Note**: For this example we are using React and React Native for it's ease of use across platforms but you can install SDKs for a number of languages, including native iOS and Android.*
 
 Now initialize Courier with your authentication token:
 
@@ -82,7 +83,8 @@ When you track user events, you can:
 - Re-engage dormant users with targeted content
 - Build user profiles that inform future communications
 
-[PLACEHOLDER: Flow diagram showing different user paths based on their actions]
+<img width="1284" height="772" alt="Screenshot 2025-08-20 at 4 39 56 PM" src="https://github.com/user-attachments/assets/a83a6683-2459-45da-ac00-c5cd6a2977d2" />
+
 
 ### Building Your Event System
 
