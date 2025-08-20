@@ -1,152 +1,145 @@
-# Building Intelligent Onboarding with Courier: A Developer's Guide
+# Building Multi-Channel Onboarding with Courier: A Developer's Guide
 
 ## Introduction
 
-Picture this: You're the engineering lead at a B2B SaaS company. Your product team just handed you requirements for a "world-class onboarding experience" that needs to guide users from signup to their first value moment. The checklist is daunting with personalized multi-step email sequences that adapt to user behavior, in-app task lists that sync with email notifications, automatic escalation to Slack when high-value accounts get stuck, different onboarding flows for different customer segments, mobile push notifications that complement other channels, and real-time tracking of what's working and what's not.
+As someone who builds products for real people you know that a sticky onboarding experience can be the difference between strong MAU growth and a 'failure to launch' moment after signup. But building an onboarding system that users find, and find useful, means juggling multiple notification channels, tracking user progress, personalizing content, and somehow making it all work across web and mobile.
 
-Building this from scratch would take months of engineering time, require maintaining multiple notification systems, and create a maze of conditional logic. You'd need to integrate with email providers, build state machines for multi-step flows, implement retry logic for failed deliveries, create branching logic for different user paths, and somehow make it all work across web and mobile. And that's before you even think about analytics and ongoing maintenence. 
+The traditional approach involves stitching together email providers, building state machines for multi-step flows, implementing retry logic, and creating branching logic for different user paths. This guide shows you how to build a complete onboarding system using Courier's platform, which handles all the complex orchestration while you focus on the user experience.
 
-This cookbook shows you how to build this entire onboarding system using Courier's orchestration platform. We'll create an intelligent, multi-channel onboarding flow that adapts to user behavior, escalates when needed, and actually helps your users succeed with your product. More importantly, we'll build it in a way that your product team can iterate on without constantly pulling in engineering resources.
+## What We'll Build
 
-## What We're Building
+A Cookbook is an ongoing program that provides you with recipes, such as onboarding, with all the ingrediates to make that recipe work. We'll create an onboarding system that:
+- Triggers automatically based on user actions (signup, invites, first project)
+- Sends multi-step sequences that adapt to user behavior
+- Routes through the right channels (email, in-app, push, SMS)
+- Personalizes content based on user segments
+- Escalates to your team when high-value users need help
+- Works seamlessly across web and mobile
+- Tracks what's working through built-in analytics
 
-We'll construct an onboarding system for a fictional B2B collaboration platform called "TeamSync." The system we build will trigger automatically when users complete product actions like signup, team invites, or project creation. It will send multi-step email sequences that adapt based on user progress and route through appropriate channels starting with email, falling back to in-app notifications, then SMS, and finally escalating to Slack for high-value accounts.
+Throughout this guide, we'll use a fictional B2B SaaS platform as our example, but these patterns apply to any product that needs sophisticated onboarding. You'll see real Courier SDK code that you can adapt to your needs, along with explanations of why each piece matters for your users.
 
-The system will create branching paths based on user type and behavior, manage tasks through Courier Inbox for a unified experience, support multiple tenants with customized flows per customer segment, and work seamlessly on mobile through native SDKs. By the end of this guide, you'll have a production-ready onboarding system that would typically take a team months to build.
+[PLACEHOLDER: High-level architecture diagram showing user events flowing through Courier to various channels]
 
 ## Setup
 
-First, let's install the necessary dependencies and configure our environment. We'll need the Courier SDK for our backend, the React components for our frontend inbox, and the mobile SDK for our native apps:
+First, let's get the foundations in place. Install the Courier SDK for your platform:
 
 ```bash
-# Install Courier SDK for your backend
-npm install @trycourier/courier
-# For React frontend (Inbox component)
-npm install @trycourier/react-provider @trycourier/react-inbox
-# For mobile
-npm install @trycourier/courier-react-native
+npm install @trycourier/courier                  # Backend SDK
+npm install @trycourier/react-inbox              # React components
+npm install @trycourier/courier-react-native     # Mobile SDK
 ```
 
-Now let's initialize Courier with our authentication token. For multi-tenant scenarios, we'll also set up tenant-specific configurations:
+Now initialize Courier with your authentication token:
 
 ```javascript
-// Initialize Courier
-import { CourierClient } from "@trycourier/courier";
-
-const courier = CourierClient({
+const { CourierClient } = require("@trycourier/courier");
+const courier = new CourierClient({ 
   authorizationToken: process.env.COURIER_AUTH_TOKEN
 });
-
-// For multi-tenant setup, we'll also configure tenant-specific tokens
-const tenantTokens = {
-  enterprise: process.env.COURIER_ENTERPRISE_TOKEN,
-  startup: process.env.COURIER_STARTUP_TOKEN,
-  trial: process.env.COURIER_TRIAL_TOKEN
-};
 ```
 
-## Part 1: Event-Driven Onboarding Triggers
+**Key configuration notes:**
+- Store your auth token in environment variables, never in code
+- For production, consider using different tokens for test/production environments
+- The client handles retries and timeouts automatically
 
-The foundation of great onboarding is responding to what users actually do, not just sending time-based drip campaigns that ignore user behavior. Traditional onboarding systems often rely on rigid schedules - send email 1 on day 1, email 2 on day 3, and so on. This approach ignores whether users have actually taken any meaningful actions in your product.
+See the [authentication docs](https://www.courier.com/docs/reference/auth/intro/) for more setup options.
 
-Instead, we want our onboarding to be reactive and intelligent. When a user signs up but doesn't invite their team within 24 hours, we should nudge them differently than a user who invited 10 team members in their first hour. When an enterprise customer gets stuck, we should escalate to human support rather than sending another automated email into the void.
+## Part 1: Event-Driven Onboarding
 
-Let's build an event tracking system that captures these key moments and triggers appropriate onboarding flows:
+### Why Events Matter
+
+Traditional onboarding sends emails on a fixed schedule - day 1, day 3, day 7. But your users don't follow schedules. Some dive in immediately and need advanced features explained. Others sign up and disappear for a week. Event-driven onboarding responds to what users actually do, creating a more relevant experience.
+
+When you track user events, you can:
+- Send the right message at the right time
+- Skip irrelevant steps for power users
+- Re-engage dormant users with targeted content
+- Build user profiles that inform future communications
+
+[PLACEHOLDER: Flow diagram showing different user paths based on their actions]
+
+### Building Your Event System
+
+Here's how to capture and respond to key user events:
 
 ```javascript
-// Track key onboarding events in your product
-class OnboardingEvents {
-  constructor(courier, userId, tenantId) {
-    this.courier = courier;
-    this.userId = userId;
-    this.tenantId = tenantId;
-  }
-
-  async userSignedUp(userData) {
-    // Create or update user profile with traits
-    await this.courier.profiles.merge({
-      recipientId: this.userId,
+// When a user signs up, create their profile
+await courier.profiles.merge({
+  recipientId: userId,
       profile: {
         email: userData.email,
         name: userData.name,
         company: userData.company,
-        role: userData.role,
-        signupDate: new Date().toISOString(),
         plan: userData.plan,
-        tenant: this.tenantId
-      }
-    });
+    signupDate: new Date().toISOString()
+  }
+});
 
-    // Trigger onboarding automation
-    await this.courier.automations.invoke({
-      automation: "onboarding-welcome-flow",
-      profile: { user_id: this.userId },
+// Then trigger your welcome flow
+await courier.automations.invoke({
+  automation: "onboarding-welcome",
+  profile: { user_id: userId },
       data: {
-        trigger: "user_signup",
         plan: userData.plan,
         company_size: userData.companySize
       }
     });
-  }
-
-  async teamMemberInvited(inviteData) {
-    await this.courier.send({
-      message: {
-        template: "team-growth-milestone",
-        to: { user_id: this.userId },
-        data: {
-          invites_sent: inviteData.count,
-          team_size: inviteData.teamSize
-        }
-      }
-    });
-  }
-
-  async firstProjectCreated(projectData) {
-    // Update user profile to mark milestone
-    await this.courier.profiles.merge({
-      recipientId: this.userId,
-      profile: {
-        onboarding_status: "project_created",
-        first_project_date: new Date().toISOString()
-      }
-    });
-
-    // Trigger next phase of onboarding
-    await this.courier.automations.invoke({
-      automation: "post-activation-flow",
-      profile: { user_id: this.userId },
-      data: projectData
-    });
-  }
-}
 ```
 
-Notice how each event not only triggers a notification but also updates the user's profile with behavioral data. This creates a rich user profile that future automations can use to make intelligent decisions. The `userSignedUp` method stores plan information that determines whether this user gets enterprise onboarding or standard flows. The `firstProjectCreated` method marks a critical activation milestone that can trigger congratulatory messages or next-step guidance.
+**Customizing for your product:**
+```
+// Pseudo-code for your event handlers
+ON user_signup:
+  CREATE profile with user data
+  START onboarding automation based on plan type
+  
+ON team_invite_sent:
+  UPDATE profile.team_size
+  IF first invite: SEND collaboration tips
+  
+ON first_project_created:
+  UPDATE profile.activation_status = true
+  START advanced_features automation
+```
 
-## Part 2: Multi-Step Email Sequences with Intelligent Timing
+### Building Rich User Profiles
 
-Now that we're capturing user events, let's build sophisticated email sequences that adapt to user behavior. The challenge with multi-step onboarding is that users progress at different speeds. Some dive in immediately and need advanced features explained on day two. Others sign up and disappear for a week before returning.
+Every event updates the user profile, creating a complete picture of their journey. This accumulated data helps you make smarter decisions about what to send next:
 
-Traditional email automation tools force you to choose between time-based delays (send email 2 after 3 days) or action-based triggers (send email 2 after user does X). With Courier's Automations, we can combine both approaches with conditional logic that creates truly adaptive flows.
+- **Behavioral data**: Track actions like last_login, projects_created, team_invites_sent
+- **Segment data**: Store plan_type, company_size, industry for personalization
+- **Progress data**: Monitor onboarding_status, activation_date, feature_usage
 
-Here's how we build an intelligent welcome flow that respects user engagement:
+These profiles become the foundation for all your routing and personalization decisions.
+
+## Part 2: Multi-Step Email Sequences
+
+### Creating Adaptive Flows
+
+Your onboarding shouldn't be a one-size-fits-all drip campaign. Users progress at different speeds, and your sequences need to adapt. Courier's automations let you combine time-based delays with behavioral triggers, creating flows that feel personalized without building separate systems for each user type.
+
+The key is balancing:
+- **Time-based steps**: "Wait 24 hours" gives users time to explore
+- **Behavioral checks**: "If user has logged in" ensures relevance
+- **Conditional paths**: Different messages for different user states
+
+[PLACEHOLDER: Visual flow showing a multi-step sequence with branches based on user behavior]
+
+### Building Your First Automation
+
+Here's a practical automation that adapts to user behavior:
 
 ```javascript
-// Define the welcome flow automation template
-const welcomeFlowAutomation = {
+// Define your automation in Courier (via API or dashboard)
+const welcomeFlow = {
   steps: [
     {
       action: "send",
       template: "welcome-email",
-      channels: ["email"],
-      data: {
-        dynamicContent: {
-          enterprise: "welcome-enterprise-content",
-          startup: "welcome-startup-content",
-          trial: "welcome-trial-content"
-        }
-      }
+      channels: ["email"]
     },
     {
       action: "wait",
@@ -155,7 +148,6 @@ const welcomeFlowAutomation = {
     {
       action: "condition",
       if: {
-        // Check if user has logged in
         profile: { last_login: { exists: true } }
       },
       then: [
@@ -170,15 +162,6 @@ const welcomeFlowAutomation = {
           action: "send",
           template: "login-reminder",
           channels: ["email"]
-        },
-        {
-          action: "wait",
-          duration: "48 hours"
-        },
-        {
-          action: "escalate",
-          template: "dormant-user-alert",
-          channels: ["slack"]
         }
       ]
     }
@@ -186,229 +169,234 @@ const welcomeFlowAutomation = {
 };
 ```
 
-This automation demonstrates several powerful concepts. First, the initial welcome email uses dynamic content based on the user's plan. Enterprise customers see different value propositions than trial users. After 24 hours, we check if the user has actually logged in. Active users receive a setup guide to help them get value quickly. Inactive users get a gentle reminder, and if they remain dormant, we escalate to our success team via Slack.
+**Customizing for your onboarding:**
+```
+// Pseudo-code showing the flow logic
+STEP 1: Send welcome email
+STEP 2: Wait 24 hours
+STEP 3: Check user activity
+  IF user logged in:
+    Send setup guide to help them get started
+  ELSE:
+    Send gentle reminder
+    Optional: Escalate if enterprise customer
+```
+
+### Smart Timing Options
+
+Courier supports various timing strategies to respect user preferences:
+
+- **Simple delays**: `wait: "24 hours"` - straightforward and effective
+- **Business hours**: Send during work hours in user's timezone
+- **Batched delivery**: Group notifications to reduce noise
+- **Smart send times**: Use engagement data to find optimal delivery windows
+
+See the [automations documentation](https://www.courier.com/docs/platform/automations/) for more complex flow examples.
 
 ## Part 3: Smart Channel Routing
 
-One of the most frustrating aspects of building notification systems is managing channel fallbacks and routing. Should this message go to email? What if the user has the mobile app - should we send a push notification instead? What about critical alerts that need multiple channels?
+### Why Channel Strategy Matters
 
-The typical approach involves writing complex if/else logic scattered throughout your codebase. You end up with code that checks user preferences, validates contact information, handles provider failures, and manages timing between channels. It becomes a nightmare to maintain and even harder to modify when product requirements change.
+Not every message should go to email. Your power users might prefer Slack notifications. Mobile users need push notifications. Some messages are urgent enough for SMS. The challenge is routing each message through the right channel without building complex if/else logic throughout your codebase.
 
-Courier's routing engine solves this elegantly. You define your routing logic once, and Courier handles the complexity of channel selection, fallbacks, and delivery optimization. Here's how to implement smart routing that ensures messages reach users through their preferred channels:
+Courier's routing engine handles this complexity for you. You define your routing strategy once, and Courier automatically:
+- Checks which channels are available for each user
+- Respects user preferences
+- Falls back to alternative channels if delivery fails
+- Prevents channel fatigue with smart throttling
+
+[PLACEHOLDER: Diagram showing message routing through different channels with fallback logic]
+
+### Implementing Your Routing Strategy
+
+Here's how to implement intelligent routing:
 
 ```javascript
-const sendWithRouting = async (userId, notification) => {
-  const routing = {
-    // Always send to inbox for in-app visibility
-    inbox: { 
-      override: { 
-        inbox: { 
-          title: notification.title,
-          preview: notification.preview 
-        } 
-      } 
+const { requestId } = await courier.send({
+  message: {
+    to: {
+      user_id: userId,
+      email: "user@example.com",
+      phone_number: "+1234567890"
     },
-    
-    // Email with smart fallback
-    email: {
-      override: {
-        email: {
-          subject: notification.subject,
-          preheader: notification.preview
-        }
-      },
-      if: { preferences: { channel: "email" } }
+    template: "onboarding-task",
+    data: {
+      task_name: "Complete your profile",
+      priority: "high"
     },
-    
-    // SMS for critical actions only
-    sms: {
-      override: {
-        sms: {
-          body: notification.smsBody
-        }
-      },
-      if: { 
-        AND: [
-          { data: { priority: "critical" } },
-          { profile: { phone_number: { exists: true } } }
-        ]
-      }
+    routing: {
+      method: "single",
+      channels: ["email", "inbox", "sms"]
     },
-    
-    // Push for mobile users
-    push: {
-      override: {
-        apn: {
-          aps: {
-            alert: {
-              title: notification.title,
-              body: notification.preview
-            }
-          }
-        }
-      },
-      if: { profile: { push_token: { exists: true } } }
-    }
-  };
-
-  return await courier.send({
-    message: {
-      template: notification.template,
-      to: { user_id: userId },
-      data: notification.data,
-      routing,
       timeout: {
-        channel: 3600000, // 1 hour per channel
-        provider: 300000  // 5 minutes per provider
+      channel: 3600000  // Try each channel for up to 1 hour
       }
     }
   });
-};
 ```
 
-This routing configuration embodies several best practices. Every message goes to the inbox, creating a persistent record users can reference later. Email only sends if users prefer that channel. SMS is reserved for critical notifications and only if we have a valid phone number. Push notifications automatically route to mobile users. The timeout settings ensure we don't wait forever for a channel to respond before trying the next option.
+**Building your routing logic:**
+```
+// Pseudo-code for common routing patterns
 
-## Part 4: Conditional Paths and Personalization
+// Pattern 1: User preference based
+IF user prefers email: try email first
+ELSE IF user has mobile app: try push
+ELSE: fallback to inbox
 
-Great onboarding feels personal and relevant. Generic "one size fits all" flows frustrate power users who want to dive deep quickly, while overwhelming casual users who need gentle guidance. The challenge is creating these personalized experiences without building entirely separate systems for each user segment.
+// Pattern 2: Message priority based  
+IF critical alert: 
+  send to ALL channels (email + push + SMS)
+IF normal priority:
+  send to primary channel only
+  
+// Pattern 3: Time-sensitive
+IF urgent AND business hours: try Slack
+IF urgent AND after hours: try SMS
+ELSE: queue for email
+```
 
-This is where conditional logic and dynamic content become essential. Instead of maintaining multiple onboarding flows, we create one intelligent system that adapts based on user characteristics and behavior. Let's implement branching logic that creates different experiences for different users:
+### Channel Best Practices
+
+| Channel | Best For | Avoid For | User Expectation |
+|---------|----------|-----------|------------------|
+| Email | Detailed content, records | Urgent alerts | Check periodically |
+| Push | Time-sensitive updates | Long content | Immediate attention |
+| SMS | Critical alerts only | Marketing | Very urgent only |
+| In-app | Task lists, history | Initial contact | Check when in app |
+| Slack | Team notifications | Personal data | Work context |
+
+Remember: Start simple with email + in-app, then add channels as needed. See the [routing documentation](https://www.courier.com/docs/platform/sending/routing/) for advanced patterns.
+
+## Part 4: Personalization and Segmentation
+
+### Making Onboarding Feel Personal
+
+Generic onboarding frustrates everyone. Enterprise customers expect white-glove treatment. Developers want API docs upfront. Small teams need quick wins. The solution isn't building separate flows for each segment - it's creating one smart system that adapts.
+
+With Courier, you can personalize based on:
+- **Company attributes**: Size, industry, plan type
+- **User role**: Admin, developer, end user
+- **Behavior patterns**: Fast mover vs. cautious explorer
+- **Progress markers**: Where they are in the journey
+
+### Dynamic Segmentation in Practice
+
+Here's how to route users to the right onboarding path:
 
 ```javascript
-class PersonalizedOnboarding {
-  async determineUserPath(userId) {
+// Get user profile to determine segment
     const profile = await courier.profiles.get(userId);
     
-    // Define paths based on user traits
-    const paths = {
-      enterprise: {
-        condition: profile.company_size > 100,
-        flow: "enterprise-onboarding",
-        features: ["sso_setup", "team_hierarchy", "compliance_docs"]
-      },
-      power_user: {
-        condition: profile.role === "admin" && profile.technical_level === "high",
-        flow: "technical-onboarding", 
-        features: ["api_docs", "webhook_setup", "advanced_config"]
-      },
-      standard: {
-        condition: true, // default
-        flow: "standard-onboarding",
-        features: ["basic_setup", "first_project", "invite_team"]
-      }
-    };
+// Determine which flow to trigger
+let automationName = "standard-onboarding";
 
-    // Select appropriate path
-    const selectedPath = Object.values(paths).find(path => path.condition) || paths.standard;
-    
-    // Trigger path-specific automation
+if (profile.company_size > 100) {
+  automationName = "enterprise-onboarding";
+} else if (profile.role === "developer") {
+  automationName = "technical-onboarding";
+}
+
+// Trigger the appropriate automation
     await courier.automations.invoke({
-      automation: selectedPath.flow,
+  automation: automationName,
       profile: { user_id: userId },
       data: {
-        features_to_highlight: selectedPath.features,
-        personalization: {
           company_name: profile.company,
           user_name: profile.name,
-          use_case: profile.primary_use_case
-        }
-      }
-    });
+    features_to_highlight: getRelevantFeatures(profile)
   }
+});
+```
 
-  async createDynamicContent(template, userData) {
-    // Use Courier's template variables for personalization
-    const personalizedTemplate = {
-      email: {
-        subject: `{{name}}, let's get {{company}} up and running`,
-        body: {
-          blocks: [
-            {
-              type: "text",
-              content: `Hi {{name}},\n\nWelcome to TeamSync! Since you're 
-                       {{#if is_enterprise}}managing a large team{{else}}getting started{{/if}}, 
-                       we've customized your onboarding to focus on what matters most.`
-            },
-            {
-              type: "action",
-              content: "Complete Your Setup",
-              href: "{{setup_link}}?priority={{recommended_features}}"
-            }
-          ]
-        }
+**Creating adaptive content:**
+```
+// Pseudo-code for your segmentation logic
+FOR each new user:
+  IF enterprise customer:
+    Focus on: SSO setup, team management, compliance
+    Assign: Dedicated success manager
+    Channel: Email + Slack
+    
+  IF developer:
+    Focus on: API docs, webhooks, integrations
+    Skip: Basic tutorials
+    Channel: Email + documentation links
+    
+  ELSE standard user:
+    Focus on: Quick wins, basic features
+    Provide: Self-serve resources
+    Channel: Email + in-app guides
+```
+
+### Using Template Variables
+
+Courier templates support Handlebars for dynamic content:
+
+```handlebars
+Hi {{name}},
+
+{{#if is_enterprise}}
+  Your dedicated success manager will reach out within 24 hours.
+{{else}}
+  Here are three quick wins to get started:
+{{/if}}
+
+{{#each recommended_features}}
+  - {{this.name}}: {{this.description}}
+{{/each}}
+```
+
+This approach lets you maintain one template that adapts to each user, rather than managing dozens of variations.
+
+[PLACEHOLDER: Visual showing how one template renders differently for different user segments]
+
+## Part 5: In-App Tasks with Courier Inbox
+
+### Beyond Email: Interactive Onboarding
+
+Emails get lost. Users forget what they need to do. There's no sense of progress. That's why modern products include in-app task lists for onboarding - giving users a persistent checklist they can work through at their own pace.
+
+Courier Inbox provides this out of the box:
+- Tasks appear instantly in your app
+- Read/unread states sync across devices
+- Users can mark items complete
+- Progress is visible and motivating
+- Everything integrates with your existing notifications
+
+### Setting Up Onboarding Tasks
+
+Backend: Send tasks to the inbox:
+
+```javascript
+// Send onboarding tasks to user's inbox
+const tasks = [
+  { title: "Complete your profile", action: "/settings/profile" },
+  { title: "Invite team members", action: "/team/invite" },
+  { title: "Create first project", action: "/projects/new" }
+];
+
+for (const task of tasks) {
+  await courier.send({
+    message: {
+      to: { user_id: userId },
+      template: "onboarding-task",
+      channels: ["inbox"],
+      data: {
+        title: task.title,
+        action_url: task.action
+      },
+      metadata: {
+        tags: ["onboarding"]
       }
-    };
-
-    return personalizedTemplate;
-  }
+    }
+  });
 }
 ```
 
-The beauty of this approach is its flexibility. Enterprise users automatically get onboarding that focuses on SSO setup and compliance documentation. Technical users see API documentation and webhook configuration. Everyone else gets the standard flow. The content itself adapts using Courier's template variables, so messages feel personally crafted even though they're generated from templates.
-
-## Part 5: Courier Inbox for Task Management
-
-Email is great for notifications, but terrible for task management. Users lose track of what they need to do, emails get buried, and there's no sense of progress. This is why many modern SaaS products include an in-app notification center or task list for onboarding.
-
-Building this from scratch requires significant frontend and backend work. You need to create UI components, manage read/unread states, handle real-time updates, and sync across devices. [Courier Inbox](https://www.courier.com/docs/platform/inbox/inbox-overview) provides all of this out of the box, transforming onboarding from a series of disconnected emails into an interactive checklist.
-
-Let's implement an onboarding task system that lives inside your product:
-
-```javascript
-// Backend: Send onboarding tasks to Inbox
-const createOnboardingTasks = async (userId, userPlan) => {
-  const tasks = [
-    {
-      id: "complete-profile",
-      title: "Complete your profile",
-      priority: 1,
-      action_url: "/settings/profile"
-    },
-    {
-      id: "invite-team",
-      title: "Invite your first team member",
-      priority: 2,
-      action_url: "/team/invite"
-    },
-    {
-      id: "create-project",
-      title: "Create your first project",
-      priority: 3,
-      action_url: "/projects/new"
-    }
-  ];
-
-  // Add plan-specific tasks
-  if (userPlan === "enterprise") {
-    tasks.push({
-      id: "schedule-onboarding",
-      title: "Schedule onboarding call with success team",
-      priority: 0,
-      action_url: "/schedule-demo"
-    });
-  }
-
-  // Send tasks to Inbox with metadata
-  for (const task of tasks) {
-    await courier.send({
-      message: {
-        template: "onboarding-task",
-        to: { user_id: userId },
-        channels: ["inbox"],
-        data: task,
-        metadata: {
-          tags: ["onboarding", `priority-${task.priority}`]
-        }
-      }
-    });
-  }
-};
-```
-
-The frontend implementation is remarkably simple. Courier provides React components that handle all the complexity of real-time updates, state management, and user interactions:
+Frontend: Display tasks in your React app:
 
 ```jsx
-// Frontend: Display tasks in React app
 import { Inbox } from "@trycourier/react-inbox";
 
 function OnboardingTasks() {
@@ -419,19 +407,12 @@ function OnboardingTasks() {
           id: "onboarding",
           label: "Setup Tasks",
           params: { tags: ["onboarding"] }
-        },
-        {
-          id: "completed",
-          label: "Completed",
-          params: { status: "read", tags: ["onboarding"] }
         }
       ]}
       onMessageClick={(message) => {
-        // Navigate to task action
-        if (message.data?.action_url) {
-          window.location.href = message.data.action_url;
-        }
-        // Mark as completed
+        // Navigate to the task
+        window.location.href = message.data?.action_url;
+        // Mark as complete
         message.markAsRead();
       }}
     />
@@ -439,399 +420,495 @@ function OnboardingTasks() {
 }
 ```
 
-Users now have a persistent task list that tracks their progress. Unlike emails that disappear into the inbox abyss, these tasks remain visible until completed. The component automatically updates in real-time as users complete tasks, providing immediate feedback and a sense of accomplishment.
+**Customizing for your product:**
+```
+// Add tasks based on user type
+IF enterprise_user:
+  ADD "Schedule onboarding call"
+  ADD "Configure SSO"
+  
+IF developer:
+  ADD "Generate API keys"
+  ADD "Review webhook docs"
+  
+// Track completion for analytics
+ON task_completed:
+  UPDATE user_profile.tasks_completed
+  IF all_tasks_done: TRIGGER success_message
+```
 
-## Part 6: Slack Escalation for High-Value Accounts
+The Inbox component handles all the complexity - real-time updates, persistence, and state management. Your users get a Gmail-like experience for their onboarding tasks.
 
-Not all users are created equal. When a trial user gets stuck, an automated email reminder might suffice. But when an enterprise customer paying $100k annually can't figure out your product, you need human intervention fast. The challenge is identifying these situations automatically and routing them to the right people without overwhelming your success team with false alarms.
+See the [Inbox documentation](https://www.courier.com/docs/platform/inbox/) for styling and customization options.
 
-This is where intelligent escalation becomes crucial. By monitoring user behavior and profile data, we can automatically detect when high-value accounts need help and alert the appropriate team members. Here's how to build a Slack escalation system that your customer success team will actually appreciate:
+## Part 6: Smart Escalation for High-Value Accounts
+
+### Knowing When to Bring in Humans
+
+Not all users are equal. When a trial user gets stuck, an automated email might be enough. But when an enterprise customer paying for your highest tier can't figure something out, you need human intervention fast.
+
+The key is building smart escalation that:
+- Identifies when users truly need help (not just haven't logged in)
+- Routes to the right team member
+- Provides context so your team can actually help
+- Doesn't overwhelm your team with false positives
+
+[PLACEHOLDER: Flow chart showing escalation decision points and routing]
+
+### Building Your Escalation System
+
+Here's a simple escalation check that alerts your team when needed:
 
 ```javascript
-class SlackEscalation {
-  constructor(courier, slackWebhook) {
-    this.courier = courier;
-    this.slackWebhook = slackWebhook;
-  }
+// Check if we need to escalate
+const profile = await courier.profiles.get(userId);
+const daysSinceSignup = getDaysSince(profile.signupDate);
 
-  async checkAndEscalate(userId) {
-    const profile = await this.courier.profiles.get(userId);
-    
-    // Define escalation criteria
-    const shouldEscalate = 
-      profile.plan === "enterprise" &&
-      profile.onboarding_status !== "completed" &&
-      profile.days_since_signup > 3 &&
-      !profile.escalated;
+// Your escalation criteria (customize based on your needs)
+const needsHelp = 
+  profile.plan === "enterprise" &&
+  daysSinceSignup > 3 &&
+  !profile.first_project_created;
 
-    if (shouldEscalate) {
-      // Send to customer success team
-      await this.courier.send({
-        message: {
-          template: "enterprise-stuck-alert",
-          to: { 
-            slack: {
-              channel: "#customer-success",
-              webhook_url: this.slackWebhook
-            }
-          },
-          data: {
-            customer_name: profile.company,
-            contact_name: profile.name,
-            contact_email: profile.email,
-            signup_date: profile.signupDate,
-            last_activity: profile.last_login,
-            blockers: await this.identifyBlockers(userId)
-          },
-          providers: {
-            slack: {
-              override: {
-                attachments: [{
-                  color: "warning",
-                  fields: [
-                    {
-                      title: "Account Value",
-                      value: `$${profile.account_value}/year`,
-                      short: true
-                    },
-                    {
-                      title: "Onboarding Progress",
-                      value: `${profile.onboarding_progress}%`,
-                      short: true
-                    }
-                  ],
-                  actions: [
-                    {
-                      type: "button",
-                      text: "View Customer Profile",
-                      url: `https://app.teamsync.com/admin/customers/${userId}`
-                    },
-                    {
-                      type: "button", 
-                      text: "Schedule Call",
-                      url: `https://calendly.com/success-team/${userId}`
-                    }
-                  ]
-                }]
-              }
-            }
-          }
+if (needsHelp && !profile.escalated) {
+  // Alert your success team via Slack
+  await courier.send({
+    message: {
+      template: "customer-needs-help",
+      to: { 
+        slack: { 
+          channel: "#customer-success",
+          access_token: process.env.SLACK_TOKEN
         }
-      });
-
-      // Mark as escalated to prevent duplicate alerts
-      await this.courier.profiles.merge({
-        recipientId: userId,
-        profile: { escalated: true }
-      });
+      },
+      data: {
+        customer_name: profile.company,
+        contact_email: profile.email,
+        days_stuck: daysSinceSignup,
+        account_value: profile.account_value
+      }
     }
-  }
-
-  async identifyBlockers(userId) {
-    // Analyze user activity to identify where they're stuck
-    const logs = await this.courier.logs.list({
-      recipient: userId,
-      limit: 50
-    });
-
-    const blockers = [];
-    
-    // Check for common sticking points
-    if (!logs.some(log => log.event === "team_invited")) {
-      blockers.push("Haven't invited team members");
-    }
-    
-    if (!logs.some(log => log.event === "project_created")) {
-      blockers.push("Haven't created first project");
-    }
-
-    return blockers;
-  }
+  });
+  
+  // Mark as escalated to prevent duplicate alerts
+  await courier.profiles.merge({
+    recipientId: userId,
+    profile: { escalated: true }
+  });
 }
 ```
 
-This escalation system is smart about what it escalates and how. It only triggers for enterprise customers who haven't completed onboarding within three days. The Slack message includes actionable information like account value and specific blockers. The action buttons let success team members jump directly to the customer profile or schedule a call. Most importantly, it marks users as escalated to prevent alert fatigue from duplicate notifications.
+**Customizing escalation for your business:**
+```
+// Consider these factors for YOUR escalation logic:
+
+- Account value (enterprise vs. self-serve)
+- Time since signup without key actions
+- Number of failed attempts at something
+- Explicit help requests or negative feedback
+- Industry or use case (some need more help)
+
+// Example patterns:
+IF enterprise AND stuck > 2 days: escalate
+IF trial ending AND low engagement: escalate
+IF multiple support tickets: escalate
+```
+
+### Making Escalations Actionable
+
+Your Slack/email alerts should include:
+- Who needs help and why
+- What they've tried so far
+- Their account details
+- Quick action links (view profile, schedule call)
+
+Avoid alert fatigue by being selective about what triggers escalation. Start conservative and adjust based on your team's capacity.
+
+See the [Slack integration docs](https://www.courier.com/docs/external-integrations/direct-message/slack/) for setup details.
 
 ## Part 7: Multi-Tenant Configuration
 
-B2B SaaS products often serve dramatically different customer segments. Your enterprise customers expect white-glove service, custom branding, and dedicated support channels. Startups want self-service tools and community resources. Trial users need convincing before they commit. Building three separate onboarding systems would be a maintenance nightmare.
+### One System, Many Experiences
 
-[Multi-tenant configuration](https://www.courier.com/docs/platform/tenants/tenants-overview) in Courier lets you create these differentiated experiences while maintaining a single codebase. Each tenant can have its own branding, email settings, and onboarding flows. Here's how to implement a multi-tenant onboarding system that scales:
+If you're building B2B SaaS, you know that different customer segments need different experiences. Enterprise customers expect their branding, custom workflows, and dedicated support. Startups want self-service and community. Trial users need convincing.
+
+Courier's tenant system lets you create these differentiated experiences without maintaining separate codebases:
+- Each tenant can have custom branding
+- Different email templates and messaging
+- Unique automation flows
+- Specific channel preferences
+
+[PLACEHOLDER: Diagram showing how one codebase serves multiple tenant configurations]
+
+### Setting Up Tenants
+
+Create tenant-specific brands:
 
 ```javascript
-class MultiTenantOnboarding {
-  constructor(courier) {
-    this.courier = courier;
-    this.tenantConfigs = {
-      enterprise: {
-        branding: {
-          primary_color: "#1a1a2e",
-          logo_url: "https://assets.teamsync.com/enterprise-logo.png"
-        },
-        email_settings: {
-          from_name: "TeamSync Enterprise Success",
-          from_email: "success@teamsync.com",
-          footer: "enterprise-footer-template"
-        },
-        onboarding_flow: "enterprise-high-touch",
-        features: ["dedicated_support", "sso", "advanced_analytics"]
-      },
-      startup: {
-        branding: {
-          primary_color: "#00d4ff",
-          logo_url: "https://assets.teamsync.com/startup-logo.png"
-        },
-        email_settings: {
-          from_name: "TeamSync Team",
-          from_email: "hello@teamsync.com",
-          footer: "standard-footer-template"
-        },
-        onboarding_flow: "self-serve-quick-start",
-        features: ["collaboration", "integrations", "automation"]
-      }
-    };
-  }
-
-  async sendTenantNotification(userId, tenantId, notification) {
-    const config = this.tenantConfigs[tenantId];
-    
-    // Send with tenant-specific configuration
-    await this.courier.send({
-      message: {
-        template: notification.template,
-        to: { 
-          user_id: userId,
-          tenant_id: tenantId
-        },
-        data: {
-          ...notification.data,
-          features: config.features
-        },
-        tenant: tenantId,
-        brand: config.branding.brand_id
-      }
-    });
-  }
-
-  async createTenantBrand(tenantId) {
-    const config = this.tenantConfigs[tenantId];
-    
-    // Create tenant-specific brand
-    const brand = await this.courier.brands.create({
-      name: `${tenantId}-brand`,
-      settings: {
-        colors: {
-          primary: config.branding.primary_color
-        },
-        email: {
-          header: {
-            logo: { href: config.branding.logo_url }
-          },
-          footer: config.email_settings.footer
+// Create a brand for enterprise customers
+const brand = await courier.brands.create({
+  name: "enterprise-brand",
+  settings: {
+    colors: {
+      primary: "#003366",
+      secondary: "#0066CC"
+    },
+    email: {
+      header: {
+        logo: { 
+          href: "https://assets.company.com/enterprise-logo.png" 
         }
+      },
+      footer: {
+        content: "Enterprise Support: support@company.com"
       }
-    });
+    }
+  }
+});
 
-    // Store brand ID for future use
-    this.tenantConfigs[tenantId].branding.brand_id = brand.id;
+// Send with tenant context
+await courier.send({
+  message: {
+    template: "welcome",
+    to: { 
+      user_id: userId,
+      tenant_id: "enterprise-segment"
+    },
+    tenant: "enterprise-segment",
+    brand: brand.id
+  }
+});
+```
+
+**Organizing your tenant strategy:**
+```
+// Map out your tenant segments
+Tenants = {
+  enterprise: {
+    branding: custom logos and colors
+    messaging: formal, detailed
+    support: dedicated success manager
+    channels: email + slack
+  },
+  
+  growth: {
+    branding: standard with minor customization
+    messaging: friendly, educational  
+    support: priority queue
+    channels: email + in-app
+  },
+  
+  trial: {
+    branding: default
+    messaging: value-focused, urgent
+    support: self-service
+    channels: email only
   }
 }
 ```
 
-Each tenant configuration encapsulates everything unique about that customer segment. Enterprise customers see emails from "Enterprise Success" with formal branding. Startups get a more casual tone and vibrant colors. The onboarding flows themselves differ, with enterprise customers receiving high-touch experiences while startups get quick-start guides. All of this complexity is hidden behind a simple tenant ID, making it easy to add new segments as your business grows.
+### Practical Tenant Patterns
 
-## Part 8: Mobile Experience with Native SDKs
+| Use Case | Implementation | Benefit |
+|----------|----------------|----------|
+| White-label | Custom brand per customer | Feels native to their product |
+| Tier-based | Brand per pricing tier | Differentiated experience |
+| Regional | Brand per geography | Localized messaging |
+| Industry | Brand per vertical | Relevant examples/terms |
 
-Mobile onboarding presents unique challenges. Users download your app with high intent but low context. They need immediate value without lengthy setup processes. Push notifications can re-engage them, but only if used judiciously. The technical challenge is coordinating onboarding across web and mobile while respecting platform differences.
+Start simple - maybe just enterprise vs. everyone else. You can always add more granularity as you grow.
 
-Courier's [mobile SDKs](https://www.courier.com/docs/platform/inbox/mobile/ios-sdk) solve this by extending your onboarding system to native apps with minimal additional code. The same tasks, notifications, and user profiles work across all platforms. Here's how to implement mobile onboarding that feels native:
+See the [tenant documentation](https://www.courier.com/docs/platform/tenants/) for advanced patterns.
+
+## Part 8: Mobile Experience
+
+### Extending Onboarding to Mobile
+
+Mobile onboarding is different. Users download your app with high intent but low patience. They need immediate value, not lengthy tutorials. Push notifications can re-engage them, but only if you've earned permission.
+
+The challenge is coordinating onboarding across platforms:
+- Tasks created on web should appear in the mobile app
+- Progress should sync everywhere
+- Push notifications should complement, not duplicate emails
+- The experience should feel native to each platform
+
+[PLACEHOLDER: Diagram showing cross-platform synchronization through Courier]
+
+### Mobile Implementation
+
+React Native setup:
 
 ```javascript
-// React Native implementation
-import { CourierProvider, CourierInbox } from '@trycourier/courier-react-native';
+import { CourierProvider } from '@trycourier/courier-react-native';
 
-function MobileOnboarding() {
+function App() {
   return (
     <CourierProvider
       clientKey={process.env.COURIER_CLIENT_KEY}
-      userId={currentUser.id}
-      wsUrl="wss://realtime.courier.com">
-      
-      <OnboardingScreen />
+      userId={currentUser.id}>
+      <YourApp />
     </CourierProvider>
   );
 }
 
-function OnboardingScreen() {
-  const { messages, markAsRead } = CourierInbox.useInbox();
-  
-  // Filter onboarding tasks
-  const onboardingTasks = messages.filter(msg => 
-    msg.metadata?.tags?.includes('onboarding')
-  );
+// Register for push notifications
+import { registerForPushNotifications } from './push-setup';
 
-  return (
-    <View>
-      <Text>Welcome to TeamSync! Let's get you started:</Text>
-      
-      {onboardingTasks.map(task => (
-        <TaskCard
-          key={task.messageId}
-          title={task.title}
-          completed={task.read}
-          onPress={() => {
-            // Navigate to task screen
-            navigation.navigate(task.data.action_url);
-            // Mark task as completed
-            markAsRead(task.messageId);
-          }}
-        />
-      ))}
-      
-      <ProgressBar 
-        progress={onboardingTasks.filter(t => t.read).length / onboardingTasks.length}
-      />
-    </View>
-  );
-}
-
-// Push notification handling
-const configurePushNotifications = async () => {
+const setupPush = async () => {
   const token = await registerForPushNotifications();
   
   // Save token to user profile
   await courier.profiles.merge({
     recipientId: userId,
     profile: {
-      ios_push_token: token,
+      ios_push_token: token, // or fcm_token for Android
       push_enabled: true
     }
   });
 };
 ```
 
-The mobile implementation reuses all the backend logic we've already built. Tasks created on the web appear instantly in the mobile app. When users complete tasks on mobile, their progress syncs everywhere. Push notifications automatically route to users who have the app installed, while others receive emails. This creates a cohesive experience regardless of how users access your product.
-
-## Part 9: Analytics and Optimization
-
-Building onboarding is only the beginning. The real work is understanding what's effective and continuously improving. Traditional analytics tools show you page views and button clicks, but they don't tell you if your onboarding is actually working. Are users completing the flows? Which channels are most effective? Where do users get stuck?
-
-Courier provides built-in analytics for every message and automation. You can track engagement rates, completion times, and user paths without implementing custom analytics. Here's how to measure and optimize your onboarding performance:
+Display onboarding tasks in your app:
 
 ```javascript
-class OnboardingAnalytics {
-  async trackEngagement(userId) {
-    // Get user's message history
-    const logs = await this.courier.logs.list({
-      recipient: userId,
-      start: "7d"  // Last 7 days
-    });
+import { useInbox } from '@trycourier/courier-react-native';
 
-    const metrics = {
-      emails_sent: 0,
-      emails_opened: 0,
-      emails_clicked: 0,
-      tasks_completed: 0,
-      days_to_activation: null
-    };
-
-    logs.results.forEach(log => {
-      if (log.type === "message") metrics.emails_sent++;
-      if (log.opened_at) metrics.emails_opened++;
-      if (log.clicked_at) metrics.emails_clicked++;
-      if (log.channel === "inbox" && log.read_at) metrics.tasks_completed++;
-    });
-
-    // Calculate activation time
-    const profile = await this.courier.profiles.get(userId);
-    if (profile.first_project_date) {
-      const signup = new Date(profile.signupDate);
-      const activation = new Date(profile.first_project_date);
-      metrics.days_to_activation = Math.floor((activation - signup) / (1000 * 60 * 60 * 24));
-    }
-
-    return metrics;
-  }
-
-  async generateCohortReport(startDate, endDate) {
-    // Analyze onboarding performance by cohort
-    const report = {
-      total_users: 0,
-      activated_users: 0,
-      average_time_to_activation: 0,
-      channel_effectiveness: {
-        email: { sent: 0, engaged: 0 },
-        inbox: { sent: 0, engaged: 0 },
-        slack: { escalations: 0, resolved: 0 }
-      }
-    };
-
-    // Process cohort data...
-    return report;
-  }
+function OnboardingScreen() {
+  const { messages, loading, error } = useInbox();
+  
+  const onboardingTasks = messages.filter(
+    msg => msg.metadata?.tags?.includes('onboarding')
+  );
+  
+  return (
+    <TaskList>
+      {onboardingTasks.map(task => (
+        <Task
+          key={task.messageId}
+          title={task.title}
+          completed={task.read}
+          onPress={() => {
+            navigateToFeature(task.data.action);
+            task.markAsRead();
+          }}
+        />
+      ))}
+    </TaskList>
+  );
 }
 ```
 
-These analytics reveal insights that drive optimization. Maybe enterprise users engage more with in-app tasks than emails. Perhaps your day-three email has low open rates because users have already activated. Armed with this data, you can iterate on your onboarding without guessing what works.
+**Mobile-specific considerations:**
+```
+// Handle push permissions carefully
+IF first_app_launch:
+  DON'T ask for push permission immediately
+  WAIT until user sees value
+  THEN request permission with context
+  
+// Sync state across platforms  
+Tasks completed on mobile -> Update web instantly
+Emails read -> Don't send push for same content
+Progress on any platform -> Reflected everywhere
 
-## Testing Your Onboarding Flow
-
-Before launching your onboarding system, thorough testing is essential. The complexity of multi-channel, multi-step flows means there are many potential failure points. Rather than discovering these in production, let's build a comprehensive testing strategy:
-
-```javascript
-// Test different user scenarios
-const testOnboarding = async () => {
-  const testUsers = [
-    {
-      id: "test-enterprise-user",
-      profile: {
-        email: "enterprise@test.com",
-        company: "Big Corp",
-        plan: "enterprise",
-        company_size: 500
-      }
-    },
-    {
-      id: "test-startup-user", 
-      profile: {
-        email: "startup@test.com",
-        company: "Small Co",
-        plan: "startup",
-        company_size: 10
-      }
-    }
-  ];
-
-  for (const user of testUsers) {
-    // Create test user
-    await courier.profiles.replace(user.id, user.profile);
-    
-    // Trigger onboarding
-    const events = new OnboardingEvents(courier, user.id, user.profile.plan);
-    await events.userSignedUp(user.profile);
-    
-    // Verify automation started
-    console.log(`Started onboarding for ${user.id}`);
-  }
-};
+// Platform differences
+iOS: Request push permission explicitly
+Android: Permission granted by default
+Both: Respect quiet hours and notification preferences
 ```
 
-Test users let you experience onboarding from different perspectives. Run through the enterprise flow to ensure high-touch elements work correctly. Test the startup flow for self-service effectiveness. Verify that escalations trigger appropriately and that tasks appear in the inbox. This testing phase often reveals edge cases and timing issues that would frustrate real users.
+The mobile SDK handles WebSocket connections, offline caching, and real-time updates automatically. Your onboarding feels seamless across all platforms.
+
+See the [mobile SDK docs](https://www.courier.com/docs/platform/inbox/mobile/) for platform-specific setup.
+
+## Part 9: Analytics and Optimization
+
+### Measuring What Matters
+
+You can't improve what you don't measure. But tracking onboarding effectiveness usually means stitching together data from multiple tools, building custom dashboards, and still not knowing if your changes actually help.
+
+Courier provides built-in analytics for your entire onboarding flow:
+- **Delivery metrics**: What got sent, delivered, opened, clicked
+- **Engagement tracking**: Which channels work best for which users  
+- **Journey analytics**: Where users drop off and why
+- **A/B testing**: Compare different approaches with real data
+
+[PLACEHOLDER: Analytics dashboard showing funnel metrics and engagement rates]
+
+### Tracking Your Onboarding Performance
+
+Get insights from your message logs:
+
+```javascript
+// Analyze user engagement
+const logs = await courier.logs.list({
+  recipient: userId,
+  start: "7d" // Last 7 days
+});
+
+// Calculate key metrics
+let metrics = {
+  sent: 0,
+  delivered: 0,
+  opened: 0,
+  clicked: 0
+};
+
+logs.results.forEach(log => {
+  metrics.sent++;
+  if (log.status === "DELIVERED") metrics.delivered++;
+  if (log.opened) metrics.opened++;
+  if (log.clicked) metrics.clicked++;
+});
+
+// Get user's activation status
+const profile = await courier.profiles.get(userId);
+const isActivated = profile.first_project_date !== null;
+```
+
+**Building your metrics dashboard:**
+```
+// Track these key onboarding metrics:
+
+1. Activation Rate
+   = Users who complete first key action / Total signups
+   Target: 40-60% within first week
+
+2. Time to Value 
+   = Time from signup to first meaningful action
+   Target: < 24 hours for most products
+
+3. Task Completion
+   = Onboarding tasks completed / Total tasks
+   Shows which steps users struggle with
+
+4. Channel Performance
+   Email open rate, Push engagement, In-app clicks
+   Identifies most effective channels
+```
+
+### Using Data to Improve
+
+| What You See | What It Means | What to Try |
+|--------------|---------------|-------------|
+| Low email opens | Subject lines not compelling | A/B test different subjects |
+| High opens, low clicks | Content not relevant | Segment users better |
+| Tasks started but not finished | Too complex | Break into smaller steps |
+| Drop-off at specific step | Friction point | Simplify or provide help |
+| Better mobile engagement | Users prefer mobile | Prioritize mobile experience |
+
+Remember: Small improvements compound. A 5% better activation rate can mean thousands more successful users.
+
+See the [analytics documentation](https://www.courier.com/docs/platform/analytics/) for advanced tracking.
+
+## Testing Your Onboarding
+
+### Before You Go Live
+
+Testing multi-channel, multi-step flows can be complex. You need to verify that the right messages reach the right users at the right time. Here's a practical approach to testing your onboarding:
+
+```javascript
+// Create test users for different scenarios
+const testUsers = [
+  {
+    id: "test-enterprise",
+    profile: {
+      email: "test-enterprise@example.com",
+      company: "Test Corp",
+      plan: "enterprise",
+      company_size: 500
+    }
+  },
+  {
+    id: "test-trial",
+    profile: {
+      email: "test-trial@example.com",
+      company: "Small Co",
+      plan: "trial",
+      company_size: 5
+    }
+  }
+];
+
+// Test each user path
+for (const user of testUsers) {
+  // Create the test profile
+  await courier.profiles.replace(user.id, user.profile);
+  
+  // Trigger onboarding
+  await courier.automations.invoke({
+    automation: "onboarding-welcome",
+    profile: { user_id: user.id },
+    data: user.profile
+  });
+  
+  console.log(`Testing ${user.id} onboarding flow...`);
+}
+```
+
+**What to test:**
+```
+✓ Each user segment gets the right content
+✓ Time delays work as expected
+✓ Conditional logic branches correctly
+✓ Channel fallbacks trigger when needed
+✓ Tasks appear in the inbox
+✓ Mobile push works (test on real devices)
+✓ Escalations fire for stuck users
+✓ Analytics track all events
+```
+
+### Testing Tips
+
+1. **Use test email addresses**: Set up dedicated test accounts to see the actual emails
+2. **Test on real devices**: Push notifications behave differently in simulators
+3. **Simulate failures**: Test what happens when channels fail or users don't have contact info
+4. **Check timing**: Verify delays and business hours routing work correctly
+5. **Review analytics**: Ensure all events are being tracked properly
 
 ## Conclusion
 
-You've now built a sophisticated onboarding system that would typically require months of engineering effort. The system responds intelligently to user behavior rather than following rigid schedules. It routes messages through the most effective channels while respecting user preferences. It escalates high-value accounts to human support when automation isn't enough. It provides differentiated experiences for different customer segments without maintaining separate codebases.
+### What You've Built
 
-More importantly, you've built a system that's maintainable and extensible. Your product team can now iterate on onboarding sequences through Courier's visual tools without engineering involvement. Your success team receives actionable alerts when enterprise customers need help. Your mobile team can create native experiences that sync seamlessly with web onboarding. And you have comprehensive analytics to measure what's actually working.
+You now have a sophisticated onboarding system that would typically take months to build from scratch. Your system:
 
-The real magic is in what you didn't have to build. No state machines for managing multi-step flows. No retry logic for failed deliveries. No complex routing engines for channel selection. No synchronization systems for cross-platform experiences. Courier handles this complexity, letting you focus on crafting the perfect onboarding experience for your users.
+- **Responds intelligently** to what users actually do, not just fixed schedules
+- **Routes through multiple channels** with automatic fallbacks
+- **Personalizes content** based on user segments without separate codebases
+- **Escalates appropriately** when high-value users need help
+- **Works across platforms** with tasks and progress syncing everywhere
+- **Provides clear metrics** so you know what's working
 
-Your onboarding is now a competitive advantage rather than a technical debt. As your product evolves and your user base grows, your onboarding system can adapt without massive rewrites. New channels, user segments, and automation flows are just configuration changes away. Most importantly, your users get an onboarding experience that actually helps them succeed with your product.
+More importantly, you've built this in a way that's maintainable and extensible. Your product team can now iterate on flows through Courier's visual tools. Your success team gets actionable alerts. Your mobile team has native experiences that just work.
 
-## Next Steps
+### What You Didn't Have to Build
 
-Now that you have a working onboarding system, explore [Courier's automation designer](https://www.courier.com/docs/platform/automations/designer) for visual workflow creation that your product team can manage independently. Set up [preferences](https://www.courier.com/docs/platform/preferences/preferences-overview) to let users control their notification experience and reduce unsubscribes. Implement [guardrails](https://www.courier.com/docs/platform/sending/guardrails) to prevent notification fatigue while ensuring important messages get through.
+The real value is in what Courier handles for you:
+- No state machines for multi-step flows
+- No retry logic or failure handling
+- No channel-specific integrations
+- No synchronization between platforms
+- No custom analytics pipelines
+- No complex routing engines
 
-The onboarding system you've built today is just the beginning. As you gather data and user feedback, you'll discover new opportunities to help users succeed. With Courier's platform handling the technical complexity, you're free to focus on what matters most: creating experiences that turn signups into successful, long-term customers.
+This lets you focus on what actually matters: helping your users succeed with your product.
 
-Happy building! 🚀
+### Next Steps
+
+Start simple and iterate:
+
+1. **Launch with basics**: Email + in-app tasks for all users
+2. **Add segmentation**: Different paths for different user types
+3. **Expand channels**: Add SMS/Slack where it makes sense
+4. **Optimize with data**: Use analytics to improve activation rates
+5. **Scale gradually**: Add more sophisticated flows as you learn
+
+## Resources
+
+- [Courier Quickstart](https://www.courier.com/docs/getting-started/quickstart/) - Get up and running
+- [Automations Guide](https://www.courier.com/docs/platform/automations/) - Build complex flows
+- [Inbox Documentation](https://www.courier.com/docs/platform/inbox/) - In-app notifications
+- [API Reference](https://www.courier.com/docs/reference/) - Complete API details
+- [SDKs](https://www.courier.com/docs/sdk-libraries/) - Language-specific libraries
+
+Remember: Great onboarding is iterative. Start with something good, measure what works, and keep improving. Your users (and your metrics) will thank you.
