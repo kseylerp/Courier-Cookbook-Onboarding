@@ -1,10 +1,10 @@
-# Building Multi-Channel Onboarding with Courier: A Developer's Guide
+# A Recipe for Building Multi-Channel Onboarding with Courier
 
 ## Introduction
 
-As developers, we know that great user onboarding is the difference between users who stick around and those who disappear after signup. But building a proper onboarding system means juggling multiple notification channels, tracking user progress, personalizing content based on user type, and somehow making it all work across web and mobile.
+As someone shipping product that hopelly people will use, you know better than most that a easy-to-follow onboarding process can make the difference between solid MAU growth and users who fail to launch. But building a proper onboarding system means juggling multiple notification channels, tracking user progress, personalizing content based on user type, and somehow making it all work across web and mobile.
 
-The traditional approach involves stitching together email providers, building state machines for multi-step flows, implementing retry logic, and creating branching logic for different user paths. This guide shows you how to build a complete onboarding system using Courier's platform - handling all the complex orchestration while you focus on the user experience.
+The traditional approach involves stitching together email providers, building state machines for multi-step flows, implementing retry logic, and creating branching logic for different user paths. This guide details the way to build a complete onboarding system using Courier's platform which can handle all the complex orchestration while you focus on the user experience.
 
 ## What We'll Build
 
@@ -13,13 +13,36 @@ We'll create an onboarding system that:
 - Sends multi-step sequences that adapt to user behavior
 - Routes through the right channels (email, in-app, push, SMS)
 - Personalizes content based on user segments
-- Escalates to your team when high-value users need help
+- Escalates to your team when high-value accounts fall through the cracks
 - Works seamlessly across web and mobile
 - Tracks what's working through built-in analytics
 
+```
+USER ACTIONS (Triggers)
+📝 Signup | 👥 Invites | 🚀 Projects | ⏰ Inactivity
+                            ↓
+COURIER PLATFORM
+🔀 Automations | 🔧 Preference Management | 📡 Multi-Channel Routing
+Multi-step flows | User notification preferences | Smart channel selection
+                            ↓
+CHANNEL ROUTING
+📧 Email: Welcome, guides | 📱 Push: Reminders, updates
+💬 SMS: Critical alerts | 📋 In-App: Inbox messages
+💬 Slack: Team notifications | ⚡ Fallback: Email → Push → SMS
+                            ↓
+COURIER INBOX & REAL-TIME SYNC
+💻 Web Inbox ↔ 📱 Mobile Inbox
+Real-time state management across platforms
+Read/unread status syncs instantly
+                            ↓
+ANALYTICS & TRACKING
+📈 Engagement rates | 📊 Channel performance | 📋 Template performance
+Message delivery, opens, clicks | Best performing channels | A/B test results
+```
+
 Throughout this guide, we'll use a fictional B2B SaaS platform as our example, but these patterns apply to any product that needs sophisticated onboarding. You'll see real Courier SDK code that you can adapt to your needs, along with explanations of why each piece matters for your users.
 
-[PLACEHOLDER: High-level architecture diagram showing user events flowing through Courier to various channels]
+<img width="1152" height="637" alt="Screenshot 2025-08-20 at 3 56 33 PM" src="https://github.com/user-attachments/assets/6b967b1f-c3e5-41c3-b77b-e8f57c4313a1" />
 
 ## Setup
 
