@@ -2,13 +2,13 @@
 
 ## Introduction
 
-As someone who builds products for real people you know that a sticky onboarding experience can be the difference between strong MAU growth and a 'failure to launch' moment after signup. But building an onboarding system that users find, and find useful, means juggling multiple notification channels, tracking user progress, personalizing content, and somehow making it all work across web and mobile.
+As developers, we know that great user onboarding is the difference between users who stick around and those who disappear after signup. But building a proper onboarding system means juggling multiple notification channels, tracking user progress, personalizing content based on user type, and somehow making it all work across web and mobile.
 
-The traditional approach involves stitching together email providers, building state machines for multi-step flows, implementing retry logic, and creating branching logic for different user paths. This guide shows you how to build a complete onboarding system using Courier's platform, which handles all the complex orchestration while you focus on the user experience.
+The traditional approach involves stitching together email providers, building state machines for multi-step flows, implementing retry logic, and creating branching logic for different user paths. This guide shows you how to build a complete onboarding system using Courier's platform - handling all the complex orchestration while you focus on the user experience.
 
 ## What We'll Build
 
-A Cookbook is an ongoing program that provides you with recipes, such as onboarding, with all the ingrediates to make that recipe work. We'll create an onboarding system that:
+We'll create an onboarding system that:
 - Triggers automatically based on user actions (signup, invites, first project)
 - Sends multi-step sequences that adapt to user behavior
 - Routes through the right channels (email, in-app, push, SMS)
