@@ -90,7 +90,7 @@ Every event updates the user profile, creating a complete picture of their journ
 
 These profiles become the foundation for all your routing and personalization decisions.
 
-## Part 2: Multi-Step Email Sequences
+## Part 2: Multi-Step Sequences
 
 ### Creating Adaptive Flows
 
@@ -100,6 +100,10 @@ The key is balancing:
 - **Time-based steps**: "Wait 24 hours" gives users time to explore
 - **Behavioral checks**: "If user has logged in" ensures relevance
 - **Conditional paths**: Different messages for different user states
+
+[PLACEHOLDER: Visual flow showing a multi-step sequence with branches based on user behavior]
+
+### Building Your First Automation
 
 Here's a practical automation that adapts to user behavior:
 
@@ -140,6 +144,19 @@ const welcomeFlow = {
 };
 ```
 
+**Customizing for your onboarding:**
+```
+// Pseudo-code showing the flow logic
+STEP 1: Send welcome email
+STEP 2: Wait 24 hours
+STEP 3: Check user activity
+  IF user logged in:
+    Send setup guide to help them get started
+  ELSE:
+    Send gentle reminder
+    Optional: Escalate if enterprise customer
+```
+
 ### Smart Timing Options
 
 Courier supports various timing strategies to respect user preferences:
@@ -147,8 +164,86 @@ Courier supports various timing strategies to respect user preferences:
 - **Simple delays**: `wait: "24 hours"` - straightforward and effective
 - **Business hours**: Send during work hours in user's timezone
 - **Batched delivery**: Group notifications to reduce noise
+- **Smart send times**: Use engagement data to find optimal delivery windows
 
-See the [automations documentation](https://www.courier.com/docs/platform/automations/) for more complex flow examples.
+### Escalation for High-Value Accounts
+
+Your sequences can also include escalation logic for when automation isn't enough. For enterprise customers or high-value accounts, you might want human intervention when they get stuck. This can be built right into your automation flows.
+
+**How it works in Courier:**
+You add escalation as conditional steps in your automation. After a wait period or activity check, add a send step with an `if` condition to evaluate the user's status. If they meet your escalation criteria (enterprise plan + no activation), the step triggers a notification to your team:
+
+```json
+{
+  "action": "send",
+  "template": "team-escalation-alert",
+  "recipient": "success-team",
+  "if": "profile.plan === 'enterprise' && profile.activated === false",
+  "profile": {
+    "slack": {
+      "access_token": "xoxb-xxxxx",
+      "channel": "success-alerts"
+    }
+  },
+  "data": {
+    "customer_name": "{{profile.company}}",
+    "days_since_signup": "{{profile.days_since_signup}}",
+    "last_activity": "{{profile.last_login}}",
+    "crm_link": "{{profile.crm_url}}"
+  },
+  "override": {
+    "slack": {
+      "body": {
+        "blocks": [
+          {
+            "type": "section",
+            "text": {
+              "type": "mrkdwn",
+              "text": "🚨 *Enterprise customer needs help*"
+            }
+          },
+          {
+            "type": "section",
+            "fields": [
+              {
+                "type": "mrkdwn",
+                "text": "*Customer:* {{customer_name}}"
+              },
+              {
+                "type": "mrkdwn",
+                "text": "*Days since signup:* {{days_since_signup}}"
+              },
+              {
+                "type": "mrkdwn",
+                "text": "*Last activity:* {{last_activity}}"
+              }
+            ]
+          },
+          {
+            "type": "actions",
+            "elements": [
+              {
+                "type": "button",
+                "text": {
+                  "type": "plain_text",
+                  "text": "View in CRM"
+                },
+                "url": "{{crm_link}}"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+The key is being selective about what triggers escalation - account value, time since signup without key actions, or explicit help requests are good indicators. Your Slack message includes all the context your team needs: customer details, their progress, and direct links to help them.
+
+This approach keeps high-value customers from falling through the cracks while avoiding alert fatigue from lower-priority users. You can also route different segments to different teams - enterprise to success managers, mid-market to support, etc.
+
+See the [automations documentation](https://www.courier.com/docs/platform/automations/) for more complex flow examples including escalation patterns.
 
 ## Part 3: Smart Channel Routing
 
@@ -441,78 +536,7 @@ Both the [React SDK](https://github.com/trycourier/courier-react) and [React Nat
 
 See the [Inbox documentation](https://www.courier.com/docs/platform/inbox/) for styling and customization options.
 
-## Part 6: Smart Escalation for High-Value Accounts
-
-### Knowing When to Bring in Humans
-
-Not all users are equal. When a trial user gets stuck, an automated email might be enough. But when an enterprise customer paying for your highest tier can't figure something out, you need human intervention fast.
-
-The key is building smart escalation that:
-- Identifies when users truly need help (not just haven't logged in)
-- Routes to the right team member
-- Provides context so your team can actually help
-- Doesn't overwhelm your team with false positives
-
-[PLACEHOLDER: Flow chart showing escalation decision points and routing]
-
-### Building Your Escalation System
-
-Here's a simple escalation check that alerts your team when needed:
-
-```javascript
-// Check if we need to escalate
-const profile = await courier.profiles.get(userId);
-const daysSinceSignup = getDaysSince(profile.signupDate);
-
-// Your escalation criteria (customize based on your needs)
-const needsHelp = 
-  profile.plan === "enterprise" &&
-  daysSinceSignup > 3 &&
-  !profile.first_project_created;
-
-if (needsHelp && !profile.escalated) {
-  // Alert your success team via Slack
-  await courier.send({
-    message: {
-      template: "customer-needs-help",
-      to: { 
-        slack: { 
-          channel: "#customer-success",
-          access_token: process.env.SLACK_TOKEN
-        }
-      },
-      data: {
-        customer_name: profile.company,
-        contact_email: profile.email,
-        days_stuck: daysSinceSignup,
-        account_value: profile.account_value
-      }
-    }
-  });
-  
-  // Mark as escalated to prevent duplicate alerts
-  await courier.profiles.merge({
-    recipientId: userId,
-    profile: { escalated: true }
-  });
-}
-```
-
-When building your escalation logic, consider factors like account value (enterprise customers need faster response), time since signup without key actions, failed attempts at critical features, explicit help requests, and industry-specific needs. For example, you might escalate enterprise customers after 2 days of inactivity, trial users approaching their trial end with low engagement, or any user who's submitted multiple support tickets.
-
-### Making Escalations Actionable
-
-Your Slack/email alerts should include:
-- Who needs help and why
-- What they've tried so far
-- Their account details
-- Quick action links (view profile, schedule call)
-
-Avoid alert fatigue by being selective about what triggers escalation. Start conservative and adjust based on your team's capacity.
-
-See the [Slack integration docs](https://www.courier.com/docs/external-integrations/direct-message/slack/) for setup details.
-
-## Part 7: Multi-Tenant Configuration
+## Part 6: Multi-Tenant Configuration
 
 ### One System, Many Experiences
 
@@ -524,47 +548,54 @@ Courier's tenant system lets you create these differentiated experiences without
 - Unique automation flows
 - Specific channel preferences
 
-[PLACEHOLDER: Diagram showing how one codebase serves multiple tenant configurations]
 
-### Setting Up Tenants
+### Understanding Tenant Hierarchy
 
-Create tenant-specific brands:
+Courier's tenant system supports complex organizational structures that mirror how businesses actually operate:
 
-```javascript
-// Create a brand for enterprise customers
-const brand = await courier.brands.create({
-  name: "enterprise-brand",
-  settings: {
-    colors: {
-      primary: "#003366",
-      secondary: "#0066CC"
-    },
-    email: {
-      header: {
-        logo: { 
-          href: "https://assets.company.com/enterprise-logo.png" 
-        }
-      },
-      footer: {
-        content: "Enterprise Support: support@company.com"
+```
+Organization (tenant0)
+└── Workspace (tenantQ)
+    └── Team (tenantP)
+        ├── Project (tenantR1)
+        │   └── Environment (tenantR1D1)
+        └── Project (tenantR2)
+            ├── Environment (tenantR2D1)
+            └── Environment (tenantR2D2)
+```
+
+This hierarchy enables several powerful features:
+
+**Inheritance**: Settings flow from parent to child with override capabilities. An organization might set default branding that workspaces inherit, but teams can override with their specific colors.
+
+**Scoped notifications**: Send to all members of a tenant and its children using audience targeting. A workspace-level alert automatically reaches all teams and projects within it.
+
+**Context preservation**: Maintain organizational boundaries in notification delivery through user profiles, ensuring the right people get the right messages with appropriate branding.
+
+### Multi-Dimensional Users
+
+Users exist in multiple contexts simultaneously. A developer might receive notifications as an individual (personal preferences), a team member (team notifications), and a workspace participant (organization-wide alerts). When sending notifications, you specify the tenant context to ensure the right preferences and branding are applied:
+
+```json
+{
+  "message": {
+    "to": {
+      "user_id": "user1",
+      "context": {
+        "tenant_id": "production-workspace"
       }
+    },
+    "content": {
+      "title": "Deployment completed",
+      "body": "Your app in {$.tenant.name} is now live"
     }
   }
-});
-
-// Send with tenant context
-await courier.send({
-  message: {
-    template: "welcome",
-    to: { 
-      user_id: userId,
-      tenant_id: "enterprise-segment"
-    },
-    tenant: "enterprise-segment",
-    brand: brand.id
-  }
-});
+}
 ```
+
+### Setting Up Your Tenant Strategy
+
+You'll configure your tenant brands and segments through Courier's platform interface. This lets you set up custom logos, colors, messaging tone, and channel preferences for each level of your organizational hierarchy without writing code. Once configured, your templates and automations automatically use the right branding based on the tenant context.
 
 When organizing your tenant strategy, think about how each customer segment should experience your product. Enterprise customers typically expect custom logos and colors, formal messaging, dedicated success managers, and premium channels like Slack integration. Growth customers might get standard branding with some customization, friendly educational messaging, priority support queues, and email plus in-app notifications. Trial users often receive default branding, value-focused urgent messaging, self-service support, and email-only communications.
 
@@ -582,8 +613,7 @@ Start simple - maybe just enterprise vs. everyone else. You can always add more 
 See the [tenant documentation](https://www.courier.com/docs/platform/tenants/) for advanced patterns.
 
 
-
-## Part 8: Analytics and Observability
+## Part 7: Analytics and Observability
 
 ### Measuring What Matters
 
@@ -591,7 +621,7 @@ You can't improve what you don't measure. But tracking onboarding effectiveness 
 
 Courier's analytics platform gives you complete visibility into your onboarding performance without the complexity of building custom tracking systems. The dashboard shows you everything from high-level delivery metrics to granular user engagement patterns, all in one place.
 
-[PLACEHOLDER: Analytics dashboard showing funnel metrics and engagement rates]
+<img width="1643" height="679" alt="Screenshot 2025-08-21 at 1 15 52 PM" src="https://github.com/user-attachments/assets/6b8ef7e3-063d-4502-b668-3d492b58fd60" />
 
 ### Built-in Analytics Capabilities
 
