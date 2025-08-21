@@ -58,7 +58,7 @@ When you track user events, you can:
 
 <img width="1284" height="772" alt="Screenshot 2025-08-20 at 4 39 56 PM" src="https://github.com/user-attachments/assets/a83a6683-2459-45da-ac00-c5cd6a2977d2" />
 
-In this example we will use our [Twilio Segment](https://segment.com/docs/connections/destinations/) integration with events:
+In this example we will use our [Twilio Segment](https://www.courier.com/docs/external-integrations/cdp/segment/segment-to-courier) integration with events:
 ```
 analytics.group
 analytics.identify
@@ -67,7 +67,7 @@ analytics.track
 
 ### Building Your Event System
 
-Workflow automations can be built on-platform using our drag-and-drop designer, but here is what this flow could look like in code. 
+To begin, we're interested in using the ```analytics.track``` method to trigger different flows based on ```sign-up```, ```login```, and ```project_start```. Using the Segment method, you can pull in these events for IF/Else conditional logic later on. 
 
 ```javascript
 // In your app - track the key events
@@ -80,61 +80,6 @@ analytics.track("sign-up", {
 analytics.track("login", { user_id: userId });
 analytics.track("project_start", { user_id: userId, project_name: "My First Project" });
 ```
-
-Then...
-
-```
-// Automation: "onboarding-welcome" (triggered by Segment "sign-up" event)
-{
-  "steps": [
-    {
-      "action": "send",
-      "template": "welcome-email"
-    },
-    {
-      "action": "wait",
-      "duration": "24 hours"
-    },
-    {
-      "action": "condition",
-      "if": {
-        "profile": { "project_started": { "exists": true } }
-      },
-      "then": [
-        {
-          "action": "send",
-          "template": "documentation-email",
-          "channels": ["email"]
-        }
-      ],
-      "else": [
-        {
-          "action": "condition", 
-          "if": {
-            "AND": [
-              { "profile": { "logged_in": { "exists": true } } },
-              { "profile": { "project_started": { "exists": false } } }
-            ]
-          },
-          "then": [
-            {
-              "action": "wait",
-              "duration": "48 hours"
-            },
-            {
-              "action": "send", 
-              "template": "project-start-reminder",
-              "channels": ["push"]
-            }
-          ]
-        }
-      ]
-    }
-  ]
-}
-```
-
-
 
 ### Building Rich User Profiles
 
@@ -156,10 +101,6 @@ The key is balancing:
 - **Time-based steps**: "Wait 24 hours" gives users time to explore
 - **Behavioral checks**: "If user has logged in" ensures relevance
 - **Conditional paths**: Different messages for different user states
-
-[PLACEHOLDER: Visual flow showing a multi-step sequence with branches based on user behavior]
-
-### Building Your First Automation
 
 Here's a practical automation that adapts to user behavior:
 
@@ -200,19 +141,6 @@ const welcomeFlow = {
 };
 ```
 
-**Customizing for your onboarding:**
-```
-// Pseudo-code showing the flow logic
-STEP 1: Send welcome email
-STEP 2: Wait 24 hours
-STEP 3: Check user activity
-  IF user logged in:
-    Send setup guide to help them get started
-  ELSE:
-    Send gentle reminder
-    Optional: Escalate if enterprise customer
-```
-
 ### Smart Timing Options
 
 Courier supports various timing strategies to respect user preferences:
@@ -220,7 +148,6 @@ Courier supports various timing strategies to respect user preferences:
 - **Simple delays**: `wait: "24 hours"` - straightforward and effective
 - **Business hours**: Send during work hours in user's timezone
 - **Batched delivery**: Group notifications to reduce noise
-- **Smart send times**: Use engagement data to find optimal delivery windows
 
 See the [automations documentation](https://www.courier.com/docs/platform/automations/) for more complex flow examples.
 
@@ -236,11 +163,49 @@ Courier's routing engine handles this complexity for you. You define your routin
 - Falls back to alternative channels if delivery fails
 - Prevents channel fatigue with smart throttling
 
-[PLACEHOLDER: Diagram showing message routing through different channels with fallback logic]
+### How Preferences and Routing Work Together
 
-### Implementing Your Routing Strategy
+Here's where Courier gets really powerful. Your users can set their notification preferences (through Courier's embeddable preference center or your own UI), and these preferences automatically influence routing decisions. Courier gives both developers and users control over the channels they want to allow for each topic and urgency level.
 
-Here's how to implement intelligent routing:
+<img width="813" height="508" alt="preferences-topic-settings" src="https://github.com/user-attachments/assets/4f7fe622-6eca-4fae-bc01-29c7d5914f2d" />
+ 
+Think of it as a two-layer system:
+1. **User preferences**: "I prefer email for updates, push for urgent stuff"
+2. **Your routing logic**: "Try their preferred channel first, then fallback"
+
+When a message is sent, Courier evaluates both layers. If a user has explicitly opted out of email, Courier won't even attempt that channel - it'll skip straight to your fallback options.
+
+### Single vs. All Channel Routing
+
+The `method` parameter in your routing config is crucial:
+
+```javascript
+// SINGLE: Try channels in order until one succeeds
+routing: {
+  method: "single",
+  channels: ["email", "push", "sms"]
+}
+// Result: Sends to email. If that fails/bounces, tries push. 
+// If push fails, tries SMS. Stops at first success.
+
+// ALL: Send to every available channel simultaneously  
+routing: {
+  method: "all",
+  channels: ["email", "push", "inbox"]
+}
+// Result: User gets the message in email AND push AND inbox
+// Great for critical alerts where redundancy matters
+```
+
+### Understanding Failover
+
+Courier's failover is smarter than just "try the next channel." Here's what actually happens:
+
+1. **Provider-level failover**: If SendGrid is down, Courier can automatically switch to your backup email provider (if configured)
+2. **Channel-level failover**: If email bounces or isn't available, move to the next channel in your list
+3. **Timeout handling**: Each channel gets a time window to succeed before moving on
+
+Here's a complete example showing how it all works together:
 
 ```javascript
 const { requestId } = await courier.send({
@@ -256,36 +221,32 @@ const { requestId } = await courier.send({
       priority: "high"
     },
     routing: {
-      method: "single",
+      method: "single",  // Try channels in order
       channels: ["email", "inbox", "sms"]
     },
-      timeout: {
-      channel: 3600000  // Try each channel for up to 1 hour
+    timeout: {
+      channel: 3600000,  // Wait up to 1 hour per channel
+      provider: 300000   // Wait up to 5 min per provider
+    },
+    providers: {
+      // Optional: specify backup providers
+      email: {
+        override: "sendgrid",
+        if_unavailable: "smtp"
       }
     }
-  });
+  }
+});
 ```
 
-**Building your routing logic:**
-```
-// Pseudo-code for common routing patterns
+What happens in this flow:
+1. Courier checks user preferences - are they okay with email?
+2. Tries SendGrid first (primary email provider)
+3. If SendGrid fails within 5 minutes, tries SMTP backup
+4. If email completely fails within 1 hour, moves to inbox
+5. If inbox fails, tries SMS as last resort
+6. Each step respects user preferences and availability
 
-// Pattern 1: User preference based
-IF user prefers email: try email first
-ELSE IF user has mobile app: try push
-ELSE: fallback to inbox
-
-// Pattern 2: Message priority based  
-IF critical alert: 
-  send to ALL channels (email + push + SMS)
-IF normal priority:
-  send to primary channel only
-  
-// Pattern 3: Time-sensitive
-IF urgent AND business hours: try Slack
-IF urgent AND after hours: try SMS
-ELSE: queue for email
-```
 
 ### Channel Best Practices
 
@@ -294,7 +255,7 @@ ELSE: queue for email
 | Email | Detailed content, records | Urgent alerts | Check periodically |
 | Push | Time-sensitive updates | Long content | Immediate attention |
 | SMS | Critical alerts only | Marketing | Very urgent only |
-| In-app | Task lists, history | Initial contact | Check when in app |
+| In-app | Task lists, history | Time sensitive alerts | Check when in app (web/mobile) |
 | Slack | Team notifications | Personal data | Work context |
 
 Remember: Start simple with email + in-app, then add channels as needed. See the [routing documentation](https://www.courier.com/docs/platform/sending/routing/) for advanced patterns.
