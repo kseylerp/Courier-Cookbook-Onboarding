@@ -604,33 +604,30 @@ See the [tenant documentation](https://www.courier.com/docs/platform/tenants/) f
 
 ### Measuring What Matters
 
-You can't improve what you don't measure. But tracking onboarding effectiveness usually means stitching together data from multiple tools, building custom dashboards, and still not knowing if your changes actually help.
+Instead of stitching together data from multiple tools, Courier provides comprehensive analytics for your notification infrastructure. You get message performance, channel effectiveness, and provider reliability all in one place - while your product analytics handle the broader user journey.
 
-Courier's analytics platform gives you complete visibility into your onboarding performance without the complexity of building custom tracking systems. The dashboard shows you everything from high-level delivery metrics to granular user engagement patterns, all in one place.
+<img width="1643" height="679" alt="Screenshot 2025-08-21 at 1 15 52 PM" src="https://github.com/user-attachments/assets/db66777e-83cf-45f2-9cf2-4d4bd8631d62" />
 
-<img width="1643" height="679" alt="Screenshot 2025-08-21 at 1 15 52 PM" src="https://github.com/user-attachments/assets/6b8ef7e3-063d-4502-b668-3d492b58fd60" />
+### What Courier Tracks
 
-### Built-in Analytics Capabilities
+**Message and Channel Performance**
+Every message is automatically tracked across all channels - deliveries, opens, clicks, and bounces. You'll see which templates work best, how each channel performs (email open rates, push engagement, SMS delivery), and where issues occur. Real-time monitoring shows delivery rates and system health at a glance, critical for catching onboarding failures before they impact activation.
 
-**Delivery and Engagement Metrics**
-Courier automatically tracks every message you send - deliveries, opens, clicks, and bounces across all channels. You can see which templates perform best, which channels your users prefer, and where messages are failing. The platform breaks this down by user segments, time periods, and individual campaigns.
+**Provider Monitoring**
+Track provider reliability to know when SendGrid is having issues or when backup providers are needed. The platform shows performance trends over time, filtered by message type or user segment.
 
-**Journey Analytics and Observability**
-The observability features let you trace individual user journeys through your onboarding flow. You can see exactly where users drop off, which messages they engage with, and how long each step takes. This kind of detailed journey mapping helps you identify friction points and optimize the user experience.
+**Integration with Your Analytics Stack**
+Courier can send engagement events (opens, clicks) back to tools like Segment, connecting message performance to your broader user activation metrics. This gives you the complete picture of how onboarding messages impact retention.
 
-**Channel Performance Insights**
-Understanding which channels work best for different types of users is crucial for onboarding optimization. Courier's analytics show you engagement rates across email, push, SMS, and in-app messages, broken down by user segments. You might discover that enterprise users respond better to email while mobile-first users prefer push notifications.
+### Optimizing Your Onboarding
 
-**Real-time Monitoring**
-From an observability perspective, Courier provides real-time monitoring of your notification infrastructure. You can see delivery rates, provider performance, and system health at a glance. This is especially important for onboarding since delivery failures can significantly impact new user activation.
+Key metrics to watch:
 
-### Using Analytics to Optimize
+- **Template performance**: Low open rates = subject line issues; high opens with low clicks = content problems
+- **Channel effectiveness**: Find which channels work best for different segments and adjust routing accordingly  
+- **Delivery health**: Spot provider issues early and know when to activate backup options
 
-The analytics dashboard helps you identify optimization opportunities quickly. Low email open rates often indicate subject line problems that need refinement. High opens but low click-through rates suggest your content isn't resonating with users, pointing to better segmentation needs. When you see users starting tasks but not finishing them, it's usually a complexity issue that calls for breaking things into smaller steps.
-
-Drop-offs at specific steps reveal friction points where users get stuck - these are prime candidates for simplification or additional help content. If you notice better engagement on mobile than desktop, it might be time to prioritize your mobile experience.
-
-The key insight is that small improvements compound significantly. A 5% better activation rate can mean thousands more successful users over time. Courier's analytics give you the data to make those improvements confidently.
+Remember: Courier handles notification metrics while your product analytics track the full user journey. Together, they show you exactly where to optimize.
 
 See the [analytics documentation](https://www.courier.com/docs/platform/analytics/) for more details on available metrics and reporting features.
 
