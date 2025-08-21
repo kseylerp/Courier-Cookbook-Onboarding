@@ -272,76 +272,65 @@ With Courier, you can personalize based on:
 - **Behavior patterns**: Fast mover vs. cautious explorer
 - **Progress markers**: Where they are in the journey
 
-### Dynamic Segmentation in Practice
+### Creating Multi-Channel Templates
 
-Here's how to route users to the right onboarding path:
+Courier is both a developer-friendly tool and a platform for non-technical teams. The visual template designer typifies this contrast better than most features. Instead of writing HTML, CSS, and channel-specific code, you can drag and drop components to build beautiful, responsive templates that automatically work across email, push notifications, SMS, and in-app messages. Developers can set up the data connections and conditional logic, while designers and product managers can iterate on the visual design and copy without touching code. This collaboration speeds up your onboarding development significantly.
+
+<img width="998" height="713" alt="Courier Template Design Studio 1 (1)" src="https://github.com/user-attachments/assets/6787cdf7-60b5-4ac7-956c-8fb67d236b55" />
+
+**What makes it special:**
+- **Multi-channel by design**: Create once, deploy everywhere
+- **Real data preview**: See exactly how templates render with actual user data
+- **Version control**: Track changes and rollback if needed
+- **Brand consistency**: Reusable components ensure consistent styling
+
+Here's how to build a personalized template that works across all your channels:
+
+**Design in the Visual Editor**
+In Courier's template designer:
+- Drag text blocks, buttons, and images for your layout
+- Add Handlebars placeholders directly in the visual editor: `{{name}}`, `{{company}}`
+- Set up conditional blocks: `{{#if is_enterprise}}...{{/if}}`
+- Configure channel-specific versions (email gets full content, push gets summary)
+
+**Map Segment Data to Template Variables**
+When Segment sends user traits, they automatically fill your template placeholders:
 
 ```javascript
-// Get user profile to determine segment
-    const profile = await courier.profiles.get(userId);
-    
-// Determine which flow to trigger
-let automationName = "standard-onboarding";
-
-if (profile.company_size > 100) {
-  automationName = "enterprise-onboarding";
-} else if (profile.role === "developer") {
-  automationName = "technical-onboarding";
-}
-
-// Trigger the appropriate automation
-    await courier.automations.invoke({
-  automation: automationName,
-      profile: { user_id: userId },
-      data: {
-          company_name: profile.company,
-          user_name: profile.name,
-    features_to_highlight: getRelevantFeatures(profile)
-  }
+// Segment sends this data
+analytics.identify(userId, {
+  name: "Sarah Chen",
+  company: "TechCorp", 
+  plan: "enterprise",
+  industry: "fintech"
 });
 ```
 
-**Creating adaptive content:**
-```
-// Pseudo-code for your segmentation logic
-FOR each new user:
-  IF enterprise customer:
-    Focus on: SSO setup, team management, compliance
-    Assign: Dedicated success manager
-    Channel: Email + Slack
-    
-  IF developer:
-    Focus on: API docs, webhooks, integrations
-    Skip: Basic tutorials
-    Channel: Email + documentation links
-    
-  ELSE standard user:
-    Focus on: Quick wins, basic features
-    Provide: Self-serve resources
-    Channel: Email + in-app guides
-```
-
-### Using Template Variables
-
-Courier templates support Handlebars for dynamic content:
-
+Your template in the visual designer uses these traits:
 ```handlebars
-Hi {{name}},
+Hi {{analytics.traits.name}},
 
-{{#if is_enterprise}}
+Welcome to our platform! Since {{analytics.traits.company}} is in the 
+{{analytics.traits.industry}} space, here are some relevant resources...
+
+{{#if (eq analytics.traits.plan "enterprise")}}
   Your dedicated success manager will reach out within 24 hours.
 {{else}}
   Here are three quick wins to get started:
 {{/if}}
-
-{{#each recommended_features}}
-  - {{this.name}}: {{this.description}}
-{{/each}}
 ```
 
-This approach lets you maintain one template that adapts to each user, rather than managing dozens of variations.
+**Trigger from Code**
+Your code simply calls the template - Courier handles the rest:
 
-[PLACEHOLDER: Visual showing how one template renders differently for different user segments]
+```javascript
+await courier.automations.invoke({
+  automation: "welcome-sequence",
+  profile: { user_id: userId }
+  // Segment data is automatically available as analytics.traits
+});
+```
+Good-looking and personalized messages are a great start to improving onboarding engagement, but Courier's method of storing templates for multiple channels in one place, enables teams to move quick with reusable, global components. 
 
 ## Part 5: In-App Tasks with Courier Inbox
 
@@ -524,53 +513,15 @@ See the [Slack integration docs](https://www.courier.com/docs/external-integrati
 
 If you're building B2B SaaS, you know that different customer segments need different experiences. Enterprise customers expect their branding, custom workflows, and dedicated support. Startups want self-service and community. Trial users need convincing.
 
-Courier's tenant system lets you create these differentiated experiences without maintaining separate codebases:
+Courier's tenant system lets you create these differentiated experiences without maintaining separate data under a single codebase:
 - Each tenant can have custom branding
 - Different email templates and messaging
 - Unique automation flows
 - Specific channel preferences
 
-[PLACEHOLDER: Diagram showing how one codebase serves multiple tenant configurations]
+![d6e8145a4dfc4dac9919997afd81296125155334f1fced7129dadc6af655eb8e](https://github.com/user-attachments/assets/d22e87ec-4740-4ee1-9f06-f80b19346c13)
 
 ### Setting Up Tenants
-
-Create tenant-specific brands:
-
-```javascript
-// Create a brand for enterprise customers
-const brand = await courier.brands.create({
-  name: "enterprise-brand",
-  settings: {
-    colors: {
-      primary: "#003366",
-      secondary: "#0066CC"
-    },
-    email: {
-      header: {
-        logo: { 
-          href: "https://assets.company.com/enterprise-logo.png" 
-        }
-      },
-      footer: {
-        content: "Enterprise Support: support@company.com"
-      }
-    }
-  }
-});
-
-// Send with tenant context
-await courier.send({
-  message: {
-    template: "welcome",
-    to: { 
-      user_id: userId,
-      tenant_id: "enterprise-segment"
-    },
-    tenant: "enterprise-segment",
-    brand: brand.id
-  }
-});
-```
 
 **Organizing your tenant strategy:**
 ```
