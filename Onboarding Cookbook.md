@@ -17,29 +17,6 @@ We'll create an onboarding system that:
 - Works seamlessly across web and mobile
 - Tracks what's working through built-in analytics
 
-```
-USER ACTIONS (Triggers)
-📝 Signup | 👥 Invites | 🚀 Projects | ⏰ Inactivity
-                            ↓
-COURIER PLATFORM
-🔀 Automations | 🔧 Preference Management | 📡 Multi-Channel Routing
-Multi-step flows | User notification preferences | Smart channel selection
-                            ↓
-CHANNEL ROUTING
-📧 Email: Welcome, guides | 📱 Push: Reminders, updates
-💬 SMS: Critical alerts | 📋 In-App: Inbox messages
-💬 Slack: Team notifications | ⚡ Fallback: Email → Push → SMS
-                            ↓
-COURIER INBOX & REAL-TIME SYNC
-💻 Web Inbox ↔ 📱 Mobile Inbox
-Real-time state management across platforms
-Read/unread status syncs instantly
-                            ↓
-ANALYTICS & TRACKING
-📈 Engagement rates | 📊 Channel performance | 📋 Template performance
-Message delivery, opens, clicks | Best performing channels | A/B test results
-```
-
 Throughout this guide, we'll use a fictional B2B SaaS platform as our example, but these patterns apply to any product that needs sophisticated onboarding. You'll see real Courier SDK code that you can adapt to your needs, along with explanations of why each piece matters for your users.
 
 <img width="1152" height="637" alt="Screenshot 2025-08-20 at 3 56 33 PM" src="https://github.com/user-attachments/assets/6b967b1f-c3e5-41c3-b77b-e8f57c4313a1" />
@@ -52,8 +29,9 @@ First, let's get the foundations in place. Install the Courier SDK for your plat
 npm install @trycourier/courier                  # Backend SDK
 npm install @trycourier/react-inbox              # React components
 npm install @trycourier/courier-react-native     # Mobile SDK
+npm install @trycourier/courier-js               # JS Client SDK
 ```
-***Note**: For this example we are using React and React Native for it's ease of use across platforms but you can install SDKs for a number of languages, including native iOS and Android.*
+***Note**: For this example we are using mostly React and React Native for it's ease of use across platforms but you can install SDKs for a number of languages, including native iOS and Android.*
 
 Now initialize Courier with your authentication token:
 
@@ -63,11 +41,6 @@ const courier = new CourierClient({
   authorizationToken: process.env.COURIER_AUTH_TOKEN
 });
 ```
-
-**Key configuration notes:**
-- Store your auth token in environment variables, never in code
-- For production, consider using different tokens for test/production environments
-- The client handles retries and timeouts automatically
 
 See the [authentication docs](https://www.courier.com/docs/reference/auth/intro/) for more setup options.
 
@@ -85,50 +58,83 @@ When you track user events, you can:
 
 <img width="1284" height="772" alt="Screenshot 2025-08-20 at 4 39 56 PM" src="https://github.com/user-attachments/assets/a83a6683-2459-45da-ac00-c5cd6a2977d2" />
 
+In this example we will use our [Twilio Segment](https://segment.com/docs/connections/destinations/) integration with events:
+```
+analytics.group
+analytics.identify
+analytics.track
+```
 
 ### Building Your Event System
 
-Here's how to capture and respond to key user events:
+Workflow automations can be built on-platform using our drag-and-drop designer, but here is what this flow could look like in code. 
 
 ```javascript
-// When a user signs up, create their profile
-await courier.profiles.merge({
-  recipientId: userId,
-      profile: {
-        email: userData.email,
-        name: userData.name,
-        company: userData.company,
-        plan: userData.plan,
-    signupDate: new Date().toISOString()
-  }
+// In your app - track the key events
+analytics.track("sign-up", { 
+    productType: "saas", 
+    segment: "midmarket"
 });
 
-// Then trigger your welcome flow
-await courier.automations.invoke({
-  automation: "onboarding-welcome",
-  profile: { user_id: userId },
-      data: {
-        plan: userData.plan,
-        company_size: userData.companySize
-      }
-    });
+// Later when user takes actions
+analytics.track("login", { user_id: userId });
+analytics.track("project_start", { user_id: userId, project_name: "My First Project" });
 ```
 
-**Customizing for your product:**
+Then...
+
 ```
-// Pseudo-code for your event handlers
-ON user_signup:
-  CREATE profile with user data
-  START onboarding automation based on plan type
-  
-ON team_invite_sent:
-  UPDATE profile.team_size
-  IF first invite: SEND collaboration tips
-  
-ON first_project_created:
-  UPDATE profile.activation_status = true
-  START advanced_features automation
+// Automation: "onboarding-welcome" (triggered by Segment "sign-up" event)
+{
+  "steps": [
+    {
+      "action": "send",
+      "template": "welcome-email"
+    },
+    {
+      "action": "wait",
+      "duration": "24 hours"
+    },
+    {
+      "action": "condition",
+      "if": {
+        "profile": { "project_started": { "exists": true } }
+      },
+      "then": [
+        {
+          "action": "send",
+          "template": "documentation-email",
+          "channels": ["email"]
+        }
+      ],
+      "else": [
+        {
+          "action": "condition", 
+          "if": {
+            "AND": [
+              { "profile": { "logged_in": { "exists": true } } },
+              { "profile": { "project_started": { "exists": false } } }
+            ]
+          },
+          "then": [
+            {
+              "action": "wait",
+              "duration": "48 hours"
+            },
+            {
+              "action": "send", 
+              "template": "project-start-reminder",
+              "channels": ["push"]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
 ```
+
+
 
 ### Building Rich User Profiles
 
