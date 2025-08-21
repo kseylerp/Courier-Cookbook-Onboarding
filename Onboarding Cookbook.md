@@ -633,58 +633,119 @@ See the [analytics documentation](https://www.courier.com/docs/platform/analytic
 
 ## Testing Your Onboarding
 
-### Before You Go Live
+### Using Courier's Test Environment
 
-Testing multi-channel, multi-step flows can be complex. You need to verify that the right messages reach the right users at the right time. Here's a practical approach to testing your onboarding:
+Courier provides a complete test environment where you can validate your entire onboarding flow before going live. Here's how to test each component effectively:
 
-```javascript
-// Create test users for different scenarios
-const testUsers = [
-  {
-    id: "test-enterprise",
-    profile: {
-      email: "test-enterprise@example.com",
-      company: "Test Corp",
-      plan: "enterprise",
-      company_size: 500
-    }
-  },
-  {
-    id: "test-trial",
-    profile: {
-      email: "test-trial@example.com",
-      company: "Small Co",
-      plan: "trial",
-      company_size: 5
-    }
-  }
-];
+### Testing with Segment Events
 
-// Test each user path
-for (const user of testUsers) {
-  // Create the test profile
-  await courier.profiles.replace(user.id, user.profile);
-  
-  // Trigger onboarding
-  await courier.automations.invoke({
-    automation: "onboarding-welcome",
-    profile: { user_id: user.id },
-    data: user.profile
-  });
-  
-  console.log(`Testing ${user.id} onboarding flow...`);
-}
-```
+To test your Segment-triggered automations:
 
-Make sure to verify that each user segment gets the right content, time delays work as expected, conditional logic branches correctly, channel fallbacks trigger when needed, tasks appear in the inbox, mobile push works on real devices, escalations fire for stuck users, and analytics track all events properly.
+1. **Send test events from Segment**:
+   - Use Segment's Event Tester to send sample events to Courier
+   - Include all the user traits your templates expect (`name`, `company`, `plan`, etc.)
+   - Watch the Events tab in Courier to confirm receipt
 
-### Testing Tips
+2. **Use Courier's test event builder**:
+   - Go to your automation and click "Debug"
+   - Select "Create Test Event" and populate with sample Segment data
+   - This simulates exactly what Segment would send
 
-1. **Use test email addresses**: Set up dedicated test accounts to see the actual emails
-2. **Test on real devices**: Push notifications behave differently in simulators
-3. **Simulate failures**: Test what happens when channels fail or users don't have contact info
-4. **Check timing**: Verify delays and business hours routing work correctly
-5. **Review analytics**: Ensure all events are being tracked properly
+3. **Test different user paths**:
+   - Create test events for each segment (enterprise, trial, developer)
+   - Verify the right automation branch triggers for each user type
+   - Check that conditional logic evaluates correctly
+
+### Testing Automations End-to-End
+
+**Running test automations**:
+- Use the "Debug" tab in the automation designer
+- Create multiple test runs with different user profiles
+- Click "Run Again" to execute test runs and watch each step
+- Verify delays by checking timestamps in the run logs
+
+**Testing Slack escalation**:
+- Create a test Slack workspace or dedicated test channel
+- Set profile data to trigger escalation (enterprise + not activated)
+- Verify the alert appears with correct formatting and data
+- Click the CRM button to ensure links work
+- Test at different times to verify business hours logic
+
+### Testing Channel Routing
+
+**Verify routing rules**:
+1. In the template designer, use "Preview" with different recipient profiles to see channel selection
+2. Use the "Send" tab to test actual delivery across channels
+3. Test routing scenarios by configuring different channel setups:
+   - Single channel routing (email only)
+   - Multi-channel routing (email → push → SMS)
+   - User preference scenarios (if user opts out of email)
+4. Check the message logs in Analytics to see which channels were attempted
+
+**Test provider failover**:
+- Configure backup providers in your integration settings
+- Test failover by sending messages during provider maintenance windows
+- Use invalid provider configurations to force failover in test
+- Check logs to confirm failover reason and timing
+
+### Testing Templates on Client
+
+**Web Inbox testing**:
+1. Implement the Courier Inbox component in a test environment
+2. Send test messages tagged for onboarding using the Send Tab
+3. Verify task cards render correctly in your browser
+4. Test click actions and mark-as-read functionality using the Inbox APIs
+
+**Mobile testing**:
+- Build the Courier Inbox into your development app using the React Native SDK
+- Send test push notifications to real devices (not simulators) using the Send Tab
+- Verify deep linking works from push to in-app
+- Test Inbox sync between web and mobile platforms
+
+**Preview across channels**:
+- Use the template designer's Preview tab to see messages across different channels
+- Test with different user profiles using test events
+- Verify responsive email design on different devices
+- Check SMS character counts and truncation in the preview
+
+### Validating with Analytics
+
+After running your tests, verify everything in Courier's analytics:
+
+**Check delivery metrics**:
+- Go to the Analytics section and review template-level performance
+- Filter by test period to isolate your test messages
+- Verify delivery rates match expectations across channels
+- Look for any bounces, failures, or routing issues
+
+**Monitor engagement**:
+- Track opens and clicks for test emails and push notifications
+- Verify Inbox read/unread states sync correctly
+- Check message status in the message logs
+
+**Review automation performance**:
+- Use the automation debugger to trace test runs step-by-step
+- Check timing of delays and conditional logic execution
+- Verify each step completed successfully in the run logs
+
+**Provider health check**:
+- Review provider performance in template analytics
+- Check channel performance tables for delivery rates by provider
+- Look for any provider errors in the message logs
+
+### Testing Checklist
+
+Before going live, ensure:
+- [ ] All user segments receive appropriate content
+- [ ] Segment events trigger the right automations
+- [ ] Channel routing and fallbacks work as expected
+- [ ] Slack escalation fires for high-value accounts
+- [ ] Templates render correctly across all channels
+- [ ] Inbox tasks appear and sync properly
+- [ ] Mobile push reaches real devices
+- [ ] Analytics track all key metrics
+- [ ] Provider failover handles outages gracefully
+
 
 ## Conclusion
 
