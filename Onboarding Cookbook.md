@@ -144,19 +144,6 @@ const welcomeFlow = {
 };
 ```
 
-**Customizing for your onboarding:**
-```
-// Pseudo-code showing the flow logic
-STEP 1: Send welcome email
-STEP 2: Wait 24 hours
-STEP 3: Check user activity
-  IF user logged in:
-    Send setup guide to help them get started
-  ELSE:
-    Send gentle reminder
-    Optional: Escalate if enterprise customer
-```
-
 ### Smart Timing Options
 
 Courier supports various timing strategies to respect user preferences:
