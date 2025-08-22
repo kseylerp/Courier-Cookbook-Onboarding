@@ -1,4 +1,6 @@
-# A Recipe for Building Multi-Channel Onboarding with Courier
+<img width="1536" height="1024" alt="Frame 163920" src="https://github.com/user-attachments/assets/195d521b-dff6-4317-b5ba-63ca293410c8" />
+
+# Building Multi-Channel Onboarding with Courier
 
 ## Introduction
 
